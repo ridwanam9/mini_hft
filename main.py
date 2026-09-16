@@ -51,3 +51,15 @@ for event in events:
         "best_ask =", book.best_ask,
         "spread =", book.spread,
     )
+
+bids, asks = book.get_depth()
+
+print("BIDS")
+for price, quantity in bids:
+    print(price, quantity)
+
+print()
+
+print("ASKS")
+for price, quantity in asks:
+    print(price, quantity)

@@ -22,6 +22,19 @@ class OrderBook:
 
         elif event.event_type == EventType.DELETE:
             book.pop(event.price, None)
+
+    def get_depth(self, levels=5):
+
+        bids = sorted(
+            self.bids.items(),
+            reverse=True
+        )[:levels]
+
+        asks = sorted(
+            self.asks.items()
+        )[:levels]
+
+        return bids, asks
     
 
     @property
