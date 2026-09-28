@@ -1,6 +1,14 @@
 from src.order_book import OrderBook
 from src.market_data import MarketEvent, EventType, Side
 
+from src.features import (
+    spread,
+    mid_price,
+    bid_volume,
+    ask_volume,
+    order_book_imbalance,
+)
+
 
 book = OrderBook()
 
@@ -42,24 +50,16 @@ events = [
 
 
 for event in events:
-
     book.process_event(event)
 
-    print(
-        event.timestamp,
-        "best_bid =", book.best_bid,
-        "best_ask =", book.best_ask,
-        "spread =", book.spread,
-    )
 
-bids, asks = book.get_depth()
+print("Best Bid :", book.best_bid)
+print("Best Ask :", book.best_ask)
 
-print("BIDS")
-for price, quantity in bids:
-    print(price, quantity)
+print("Spread   :", spread(book))
+print("Mid      :", mid_price(book))
 
-print()
+print("Bid Vol  :", bid_volume(book))
+print("Ask Vol  :", ask_volume(book))
 
-print("ASKS")
-for price, quantity in asks:
-    print(price, quantity)
+print("OBI      :", order_book_imbalance(book))
