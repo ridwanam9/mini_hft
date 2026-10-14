@@ -2,6 +2,8 @@
 from src.order_book import OrderBook
 from src.market_data import Order, OrderSide, OrderType
 from src.matching_engine import MatchingEngine
+from src.order_book_l3 import OrderBookL3
+from src.matching_engine_l3 import MatchingEngineL3
 
 
 book = OrderBook()
@@ -83,3 +85,29 @@ for trade in fills:
 
 print("Remaining asks:", book.asks)
 print("Remaining bids:", book.bids)
+
+
+book = OrderBookL3()
+engine = MatchingEngineL3(book)
+
+# Two separate sell orders at the same price.
+engine.submit_order(
+    Order(101, OrderSide.SELL, OrderType.LIMIT, 100, 101.02)
+)
+engine.submit_order(
+    Order(102, OrderSide.SELL, OrderType.LIMIT, 150, 101.02)
+)
+
+print("Ask depth before:", book.get_depth())
+
+fills = engine.submit_order(
+    Order(201, OrderSide.BUY, OrderType.MARKET, 120)
+)
+
+print("\nTrades:")
+for trade in fills:
+    print(trade)
+
+print("\nAsk depth after:", book.get_depth())
+print("Active order IDs:", list(book.order_index))
+
