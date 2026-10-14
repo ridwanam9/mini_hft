@@ -7,6 +7,8 @@ from src.features import (
     bid_volume,
     ask_volume,
     order_book_imbalance,
+    microprice,
+    get_features,
 )
 
 
@@ -52,6 +54,8 @@ events = [
 for event in events:
     book.process_event(event)
 
+features = get_features(book)
+
 
 print("Best Bid :", book.best_bid)
 print("Best Ask :", book.best_ask)
@@ -63,3 +67,8 @@ print("Bid Vol  :", bid_volume(book))
 print("Ask Vol  :", ask_volume(book))
 
 print("OBI      :", order_book_imbalance(book))
+
+print("Microprice  :", microprice(book))
+
+print(features)
+

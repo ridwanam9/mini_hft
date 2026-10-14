@@ -54,3 +54,35 @@ def order_book_imbalance(book, levels=None):
         return 0.0
 
     return (bid_vol - ask_vol) / total
+
+
+def microprice(book):
+    bid = book.best_bid
+    ask = book.best_ask
+
+    if bid is None or ask is None:
+        return None
+
+    bid_vol = book.bids[bid]
+    ask_vol = book.asks[ask]
+
+    total = bid_vol + ask_vol
+
+    if total == 0:
+        return None
+
+    return (ask * bid_vol + bid * ask_vol) / total
+
+
+def get_features(book):
+
+    return {
+        "best_bid": book.best_bid,
+        "best_ask": book.best_ask,
+        "spread": spread(book),
+        "mid_price": mid_price(book),
+        "bid_volume": bid_volume(book),
+        "ask_volume": ask_volume(book),
+        "obi": order_book_imbalance(book),
+        "microprice": microprice(book),
+    }
