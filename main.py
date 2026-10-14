@@ -1,74 +1,28 @@
 from src.order_book import OrderBook
-from src.market_data import MarketEvent, EventType, Side
-
-from src.features import (
-    spread,
-    mid_price,
-    bid_volume,
-    ask_volume,
-    order_book_imbalance,
-    microprice,
-    get_features,
-)
+from src.simulator import MarketSimulator
+from src.features import get_features
 
 
 book = OrderBook()
 
-
-events = [
-
-    MarketEvent(
-        timestamp=0.001,
-        event_type=EventType.ADD,
-        side=Side.BID,
-        price=101.00,
-        quantity=500,
-    ),
-
-    MarketEvent(
-        timestamp=0.002,
-        event_type=EventType.ADD,
-        side=Side.BID,
-        price=101.01,
-        quantity=250,
-    ),
-
-    MarketEvent(
-        timestamp=0.003,
-        event_type=EventType.ADD,
-        side=Side.ASK,
-        price=101.02,
-        quantity=300,
-    ),
-
-    MarketEvent(
-        timestamp=0.004,
-        event_type=EventType.ADD,
-        side=Side.ASK,
-        price=101.03,
-        quantity=200,
-    ),
-]
+simulator = MarketSimulator(
+    start_price=100.00
+)
 
 
-for event in events:
+for i in range(100):
+
+    timestamp = i * 0.001
+
+    event = simulator.generate_event(
+        timestamp
+    )
+
     book.process_event(event)
 
-features = get_features(book)
+    features = get_features(book)
 
-
-print("Best Bid :", book.best_bid)
-print("Best Ask :", book.best_ask)
-
-print("Spread   :", spread(book))
-print("Mid      :", mid_price(book))
-
-print("Bid Vol  :", bid_volume(book))
-print("Ask Vol  :", ask_volume(book))
-
-print("OBI      :", order_book_imbalance(book))
-
-print("Microprice  :", microprice(book))
-
-print(features)
-
+    print(
+        timestamp,
+        features
+    )
