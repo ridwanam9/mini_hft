@@ -21,3 +21,29 @@ class MarketEvent:
     side: Side
     price: float
     quantity: float
+
+
+class OrderSide(Enum):
+    BUY = "buy"
+    SELL = "sell"
+
+class OrderType(Enum):
+    LIMIT = "limit"
+    MARKET = "market"
+
+
+@dataclass
+class Order:
+    order_id: int
+    side: OrderSide
+    order_type: OrderType
+    quantity: int
+    price: float | None = None
+
+@dataclass
+class Trade:
+    buy_order_id: int
+    sell_order_id: int
+    price: float
+    quantity: int
+
