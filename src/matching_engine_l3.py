@@ -1,11 +1,12 @@
 
 from src.market_data import Order, OrderSide, OrderType, Trade
-
+from src.trade_tape import TradeRecord
 
 class MatchingEngineL3:
     def __init__(self, book):
         self.book = book
         self.trades = []
+        self.trade_tape = []
 
     def submit_order(self, order: Order) -> list[Trade]:
         if order.order_id in self.book.seen_order_ids:
@@ -75,6 +76,21 @@ class MatchingEngineL3:
                     sell_order_id=sell_id,
                     price=best_price,
                     quantity=executed,
+                )
+            )
+
+            self.trade_tape.append(
+                TradeRecord(
+                    timestamp=order.timestamp,
+                    price=best_price,
+                    quantity=executed,
+                    aggressor=(
+                        "BUY"
+                        if order.side == OrderSide.BUY
+                        else "SELL"
+                    ),
+                    buy_order_id=buy_id,
+                    sell_order_id=sell_id,
                 )
             )
 

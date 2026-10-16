@@ -39,6 +39,7 @@ class Order:
     order_type: OrderType
     quantity: int
     price: float | None = None
+    timestamp: float = 0.0
 
 @dataclass
 class Trade:
