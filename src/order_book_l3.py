@@ -2,6 +2,21 @@
 from collections import deque
 
 from src.market_data import Order, OrderSide
+from dataclasses import dataclass
+
+
+@dataclass
+class OrderBookSnapshot:
+    bids: dict
+    asks: dict
+
+    @property
+    def best_bid(self):
+        return max(self.bids, default=None)
+
+    @property
+    def best_ask(self):
+        return min(self.asks, default=None)
 
 
 class OrderBookL3:
@@ -103,3 +118,9 @@ class OrderBookL3:
         )[:levels]
 
         return bids, asks
+    
+    def snapshot(self):
+        return OrderBookSnapshot(
+            bids=dict(self.bids),
+            asks=dict(self.asks),
+        )
