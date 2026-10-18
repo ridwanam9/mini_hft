@@ -20,6 +20,7 @@ class SyntheticMarket:
 
         self.timestamp = 0.0
         self.time_step = time_step
+        self.event_count = 0
 
         self.order_id = 1
 
@@ -32,7 +33,13 @@ class SyntheticMarket:
         return order_id
 
     def next_timestamp(self):
-        self.timestamp += self.time_step
+        self.event_count += 1
+
+        self.timestamp = round(
+            self.event_count * self.time_step,
+            10,
+        )
+
         return self.timestamp
 
     def generate_limit_buy(self):
