@@ -27,6 +27,7 @@ class OrderBookL3:
         # order_id -> (side, price, order)
         self.order_index = {}
         self.seen_order_ids = set()
+        self.order_history = {}
 
     @property
     def bids(self):
@@ -83,6 +84,16 @@ class OrderBookL3:
             order.price,
             order,
         )
+        
+        self.order_history[order.order_id] = {
+            "order": order,
+            "original_quantity": order.quantity,
+            "remaining_quantity": order.quantity,
+            "status": "active",
+            "first_fill_time": None,
+            "completion_time": None,
+            "executed_quantity": 0,
+        }
 
     def cancel_order(self, order_id: int) -> bool:
         entry = self.order_index.get(order_id)
