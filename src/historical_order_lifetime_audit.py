@@ -80,6 +80,45 @@ def main():
         if record["status"] == "active"
     ]
 
+    cancelled = [
+        record
+        for record in history.values()
+        if record["status"] == "cancelled"
+    ]
+
+    unknown = [
+        record
+        for record in history.values()
+        if record["status"]
+        not in {"filled", "active", "cancelled", "expired"}
+    ]
+
+    expired = [
+        record
+        for record in history.values()
+        if record["status"] == "expired"
+    ]
+
+    print()
+    print("--- ACCOUNTING CHECK ---")
+    print(f"Total:      {len(history)}")
+    print(f"Filled:     {len(filled)}")
+    print(f"Active:     {len(active)}")
+    print(f"Cancelled:  {len(cancelled)}")
+    print(f"Unknown:    {len(unknown)}")
+    print(f"Expired:    {len(expired)}")
+
+    accounted = (
+        len(filled)
+        + len(active)
+        + len(cancelled)
+        + len(expired)
+    )
+
+    print(f"Accounted:  {accounted}")
+    print(f"Unaccounted:{len(history) - accounted}")
+
+
     buy_filled = [
         record
         for record in filled

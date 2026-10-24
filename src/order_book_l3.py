@@ -85,15 +85,19 @@ class OrderBookL3:
             order,
         )
         
-        self.order_history[order.order_id] = {
-            "order": order,
-            "original_quantity": order.quantity,
-            "remaining_quantity": order.quantity,
-            "status": "active",
-            "first_fill_time": None,
-            "completion_time": None,
-            "executed_quantity": 0,
-        }
+        if order.order_id not in self.order_history:
+            self.order_history[order.order_id] = {
+                "order": order,
+                "original_quantity": order.quantity,
+                "remaining_quantity": order.quantity,
+                "status": "active",
+                "first_fill_time": None,
+                "completion_time": None,
+                "executed_quantity": 0,
+            }
+        else:
+            self.order_history[order.order_id]["status"] = "active"
+            self.order_history[order.order_id]["remaining_quantity"] = order.quantity
 
     def cancel_order(self, order_id: int) -> bool:
         entry = self.order_index.get(order_id)
@@ -114,6 +118,11 @@ class OrderBookL3:
 
         if not queue:
             del levels[price]
+
+        history = self.order_history.get(order_id)
+
+        if history is not None:
+            history["status"] = "cancelled"
 
         del self.order_index[order_id]
         return True

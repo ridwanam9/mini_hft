@@ -151,6 +151,14 @@ class MatchingEngineL3:
             incoming_history["status"] = "filled"
             incoming_history["completion_time"] = order.timestamp
 
+        # Market order could not consume all available liquidity.
+        if remaining > 0 and order.order_type == OrderType.MARKET:
+            incoming_history = self.book.order_history[order.order_id]
+
+            incoming_history["status"] = "expired"
+            incoming_history["remaining_quantity"] = remaining
+            incoming_history["completion_time"] = order.timestamp
+
         # -----------------------------------------------------
         # Unfilled limit quantity rests in the book.
         # -----------------------------------------------------
