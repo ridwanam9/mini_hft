@@ -25,28 +25,46 @@ class Simulation:
 
     def run(self, num_events):
         for _ in range(num_events):
+            # Coba membatalkan order yang sedang aktif.
+            if (
+                self.book.order_index
+                and self.market.should_cancel_order()
+            ):
+                previous_book = self.book.snapshot()
 
+                order_id = self.market.choose_order_to_cancel(
+                    self.book.order_index.keys()
+                )
+
+                timestamp = self.market.next_timestamp()
+
+                self.book.cancel_order(
+                    order_id,
+                    timestamp=timestamp,
+                )
+
+                current_book = self.book.snapshot()
+
+                self.state_recorder.record(
+                    previous_book=previous_book,
+                    current_book=current_book,
+                    timestamp=timestamp,
+                    trade=None,
+                )
+
+                continue
+
+            # Jika tidak ada cancellation, proses order seperti biasa.
             order = self.market.generate_order()
 
             previous_book = self.book.snapshot()
-
-            tape_length_before = len(
-                self.engine.trade_tape
-            )
+            tape_length_before = len(self.engine.trade_tape)
 
             self.engine.submit_order(order)
 
             current_book = self.book.snapshot()
-
-            new_trades = self.engine.trade_tape[
-                tape_length_before:
-            ]
-
-            last_trade = (
-                new_trades[-1]
-                if new_trades
-                else None
-            )
+            new_trades = self.engine.trade_tape[tape_length_before:]
+            last_trade = new_trades[-1] if new_trades else None
 
             self.state_recorder.record(
                 previous_book=previous_book,

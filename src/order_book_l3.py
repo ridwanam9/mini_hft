@@ -99,14 +99,13 @@ class OrderBookL3:
             self.order_history[order.order_id]["status"] = "active"
             self.order_history[order.order_id]["remaining_quantity"] = order.quantity
 
-    def cancel_order(self, order_id: int) -> bool:
+    def cancel_order(self, order_id: int, timestamp=None) -> bool:
         entry = self.order_index.get(order_id)
 
         if entry is None:
             return False
 
         side, price, order = entry
-
         levels = (
             self.bid_orders
             if side == OrderSide.BUY
@@ -124,7 +123,11 @@ class OrderBookL3:
         if history is not None:
             history["status"] = "cancelled"
 
+            if timestamp is not None:
+                history["completion_time"] = timestamp
+
         del self.order_index[order_id]
+
         return True
 
     def get_depth(self, levels=5):

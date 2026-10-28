@@ -10,16 +10,19 @@ class SyntheticMarket:
         tick_size=0.01,
         time_step=0.001,
         seed=None,
+        cancellation_probability=0.10,
     ):
+        if not 0.0 <= cancellation_probability <= 1.0:
+            raise ValueError("Cancellation probability must be between 0 and 1")
+    
         self.fair_value = start_price
-
         self.tick_size = tick_size
         self.timestamp = 0.0
         self.time_step = time_step
         self.event_count = 0
         self.order_id = 1
-
         self.random = random.Random(seed)
+        self.cancellation_probability = cancellation_probability
 
     def next_order_id(self):
         order_id = self.order_id
@@ -137,4 +140,18 @@ class SyntheticMarket:
             return self.generate_market_buy()
 
         return self.generate_market_sell()
-    
+
+    def should_cancel_order(self):
+        return (
+            self.random.random()
+            < self.cancellation_probability
+        )
+
+    def choose_order_to_cancel(self, active_order_ids):
+        active_order_ids = list(active_order_ids)
+
+        if not active_order_ids:
+            return None
+
+        return self.random.choice(active_order_ids)
+        
