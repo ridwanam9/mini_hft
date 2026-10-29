@@ -2,6 +2,7 @@ from src.market_state_recorder import MarketStateRecorder
 from src.order_book_l3 import OrderBookL3
 from src.matching_engine_l3 import MatchingEngineL3
 from src.synthetic_market import SyntheticMarket
+from src.market_data import OrderSide
 
 
 class Simulation:
@@ -25,17 +26,44 @@ class Simulation:
         self.engine = MatchingEngineL3(self.book)
         self.state_recorder = MarketStateRecorder()
 
+    
+    def get_cancellable_order_ids(self):
+        """Return active orders whose cancellation won't
+        remove the last resting order from their side.
+        """
+        bid_order_ids = []
+        ask_order_ids = []
+
+        for order_id, (side, price, order) in self.book.order_index.items():
+            if side == OrderSide.BUY:
+                bid_order_ids.append(order_id)
+            elif side == OrderSide.SELL:
+                ask_order_ids.append(order_id)
+
+        eligible_ids = []
+
+        if len(bid_order_ids) > 1:
+            eligible_ids.extend(bid_order_ids)
+
+        if len(ask_order_ids) > 1:
+            eligible_ids.extend(ask_order_ids)
+
+        return eligible_ids
+
+
     def run(self, num_events):
         for _ in range(num_events):
-            # Coba membatalkan order yang sedang aktif.
+            # Phase 20.5.5.1: Protect the last resting order.
+            cancellable_ids = self.get_cancellable_order_ids()
+
             if (
-                self.book.order_index
+                cancellable_ids
                 and self.market.should_cancel_order()
             ):
                 previous_book = self.book.snapshot()
 
                 order_id = self.market.choose_order_to_cancel(
-                    self.book.order_index.keys()
+                    cancellable_ids
                 )
 
                 timestamp = self.market.next_timestamp()
@@ -56,7 +84,8 @@ class Simulation:
 
                 continue
 
-            # Jika tidak ada cancellation, proses order seperti biasa.
+            # Jika tidak melakukan cancellation,
+            # lanjutkan dengan pembuatan dan pemrosesan order baru.
             order = self.market.generate_order()
 
             previous_book = self.book.snapshot()
@@ -74,5 +103,6 @@ class Simulation:
                 timestamp=order.timestamp,
                 trade=last_trade,
             )
+
 
         return self.state_recorder.states
