@@ -11,12 +11,14 @@ class Simulation:
         start_price=100.0,
         tick_size=0.01,
         time_step=0.001,
+        cancellation_probability=0.10,
     ):
         self.market = SyntheticMarket(
             start_price=start_price,
             tick_size=tick_size,
             time_step=time_step,
             seed=seed,
+            cancellation_probability=cancellation_probability,
         )
 
         self.book = OrderBookL3()
