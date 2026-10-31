@@ -86,3 +86,45 @@ def test_cancellation_protects_last_order_on_each_side():
 
     assert 1001 in eligible or 1003 in eligible
     assert 1002 not in eligible
+
+
+def test_cancellation_protects_last_ask_order():
+    sim = Simulation(seed=42)
+
+    sim.engine.submit_order(
+        Order(
+            order_id=2001,
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=10,
+            price=99.0,
+            timestamp=0.001,
+        )
+    )
+
+    sim.engine.submit_order(
+        Order(
+            order_id=2002,
+            side=OrderSide.SELL,
+            order_type=OrderType.LIMIT,
+            quantity=10,
+            price=101.0,
+            timestamp=0.002,
+        )
+    )
+
+    sim.engine.submit_order(
+        Order(
+            order_id=2003,
+            side=OrderSide.SELL,
+            order_type=OrderType.LIMIT,
+            quantity=10,
+            price=102.0,
+            timestamp=0.003,
+        )
+    )
+
+    eligible = sim.get_cancellable_order_ids()
+
+    assert 2001 not in eligible
+    assert 2002 in eligible or 2003 in eligible
