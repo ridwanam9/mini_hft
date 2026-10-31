@@ -128,3 +128,49 @@ def test_cancellation_protects_last_ask_order():
 
     assert 2001 not in eligible
     assert 2002 in eligible or 2003 in eligible
+
+    
+def test_distance_based_cancellation_selects_farthest_order():
+    sim = Simulation(seed=42)
+
+    sim.engine.submit_order(
+        Order(
+            order_id=3001,
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=10,
+            price=99.99,
+            timestamp=0.001,
+        )
+    )
+
+    sim.engine.submit_order(
+        Order(
+            order_id=3002,
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=10,
+            price=99.95,
+            timestamp=0.002,
+        )
+    )
+
+    sim.engine.submit_order(
+        Order(
+            order_id=3003,
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=10,
+            price=99.90,
+            timestamp=0.003,
+        )
+    )
+
+    selected = sim.choose_order_to_cancel_by_distance(
+        [3001, 3002, 3003]
+    )
+
+    assert selected == 3003
+
+
+

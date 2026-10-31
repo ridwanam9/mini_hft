@@ -62,7 +62,7 @@ class Simulation:
             ):
                 previous_book = self.book.snapshot()
 
-                order_id = self.market.choose_order_to_cancel(
+                order_id = self.choose_order_to_cancel_by_distance(
                     cancellable_ids
                 )
 
@@ -106,3 +106,18 @@ class Simulation:
 
 
         return self.state_recorder.states
+
+    
+    def choose_order_to_cancel_by_distance(self, eligible_ids):
+        """Choose the eligible order farthest from fair value."""
+        if not eligible_ids:
+            return None
+
+        fair_value = self.market.fair_value
+
+        return max(
+            eligible_ids,
+            key=lambda order_id: abs(
+                self.book.order_index[order_id][1] - fair_value
+            ),
+        )
