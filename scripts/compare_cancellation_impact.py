@@ -1,32 +1,25 @@
+
 from collections import Counter
+from statistics import mean, pstdev
 
 from src.simulation import Simulation
 
 
 NUM_EVENTS = 10_000
-SEED = 42
+SEEDS = [42, 123, 456, 789, 2026]
 CANCELLATION_PROBABILITY = 0.10
 
 SCENARIOS = [
-    {
-        "name": "NO CANCELLATION",
-        "policy": "none",
-    },
-    {
-        "name": "RANDOM CANCELLATION",
-        "policy": "random",
-    },
-    {
-        "name": "DISTANCE-BASED CANCELLATION",
-        "policy": "distance",
-    },
+    {"name": "NONE", "policy": "none"},
+    {"name": "RANDOM", "policy": "random"},
+    {"name": "DISTANCE", "policy": "distance"},
 ]
 
 
-def audit(policy, probability):
+def audit(seed, policy):
     sim = Simulation(
-        seed=SEED,
-        cancellation_probability=probability,
+        seed=seed,
+        cancellation_probability=CANCELLATION_PROBABILITY,
         cancellation_policy=policy,
     )
     states = sim.run(NUM_EVENTS)
@@ -63,71 +56,138 @@ def audit(policy, probability):
         for record in sim.book.order_history.values()
     )
 
+    total_states = len(states)
+
     return {
-        "name": policy,
+        "seed": seed,
         "policy": policy,
-        "probability": probability,
-        "states": len(states),
+        "states": total_states,
         "submitted": len(sim.book.order_history),
         "trades": len(sim.engine.trade_tape),
-        "statuses": statuses,
-        "conditions": conditions,
+        "filled": statuses["filled"],
+        "active": statuses["active"],
+        "cancelled": statuses["cancelled"],
+        "expired": statuses["expired"],
+        "both_present_pct": (
+            100 * conditions["BOTH_PRESENT"] / total_states
+            if total_states else 0.0
+        ),
+        "bid_empty_pct": (
+            100 * conditions["BID_EMPTY"] / total_states
+            if total_states else 0.0
+        ),
+        "ask_empty_pct": (
+            100 * conditions["ASK_EMPTY"] / total_states
+            if total_states else 0.0
+        ),
+        "both_empty_pct": (
+            100 * conditions["BOTH_EMPTY"] / total_states
+            if total_states else 0.0
+        ),
         "longest_empty_run": longest_empty_run,
-        "active_final": len(sim.book.order_index),
-        "best_bid": sim.book.best_bid,
-        "best_ask": sim.book.best_ask,
-        "spread": sim.book.spread,
+        "final_no_bid": sim.book.best_bid is None,
+        "final_no_ask": sim.book.best_ask is None,
+        "final_spread": sim.book.spread,
     }
 
 
-results = [
-    audit(
-        policy=scenario["policy"],
-        probability=CANCELLATION_PROBABILITY,
-    )
-    for scenario in SCENARIOS
-]
+def print_summary(policy, results):
+    print("\n" + "=" * 76)
+    print(f"POLICY: {policy.upper()} | {len(results)} SEEDS")
+    print("=" * 76)
 
-for result in results:
-    print("\n" + "=" * 60)
-    print("SCENARIO:", result["name"])
-    print("Cancellation policy:", result["policy"])
-    print(
-        "Cancellation probability:",
-        result["probability"],
-    )
-    print("=" * 60)
+    metrics = [
+        ("Submitted orders", "submitted"),
+        ("Trade records", "trades"),
+        ("Filled orders", "filled"),
+        ("Cancelled orders", "cancelled"),
+        ("Expired orders", "expired"),
+        ("BOTH_PRESENT (%)", "both_present_pct"),
+        ("BID_EMPTY (%)", "bid_empty_pct"),
+        ("ASK_EMPTY (%)", "ask_empty_pct"),
+        ("BOTH_EMPTY (%)", "both_empty_pct"),
+        ("Longest non-two-sided run", "longest_empty_run"),
+    ]
 
-    print(f"Recorded states: {result['states']}")
-    print(f"Submitted orders: {result['submitted']}")
-    print(f"Trade records: {result['trades']}")
-    print(f"Final active orders: {result['active_final']}")
+    print(f"{'Metric':30s} {'Mean':>12s} {'Std dev':>12s}")
 
-    print("\nOrder lifecycle:")
-    for status in ("filled", "active", "cancelled", "expired"):
+    for label, key in metrics:
+        values = [result[key] for result in results]
         print(
-            f"{status:10s}: "
-            f"{result['statuses'][status]}"
+            f"{label:30s} "
+            f"{mean(values):12.2f} "
+            f"{pstdev(values):12.2f}"
         )
 
-    print("\nBook conditions:")
-    for condition in (
-        "BOTH_PRESENT",
-        "BID_EMPTY",
-        "ASK_EMPTY",
-        "BOTH_EMPTY",
-    ):
-        count = result["conditions"][condition]
-        percentage = count / result["states"] if result["states"] else 0
-        print(
-            f"{condition:15s}: "
-            f"{count:5d} ({percentage:.2%})"
-        )
+    no_bid_count = sum(r["final_no_bid"] for r in results)
+    no_ask_count = sum(r["final_no_ask"] for r in results)
 
     print(
-        "\nLongest consecutive non-two-sided run:",
-        result["longest_empty_run"],
+        f"\nFinal state without bid: "
+        f"{no_bid_count}/{len(results)} seeds"
     )
-    print("Final best bid:", result["best_bid"])
-    print("Final best ask:", result["best_ask"])
-    print("Final spread:", result["spread"])
+    print(
+        f"Final state without ask: "
+        f"{no_ask_count}/{len(results)} seeds"
+    )
+
+    spreads = [
+        result["final_spread"]
+        for result in results
+        if result["final_spread"] is not None
+    ]
+
+    if spreads:
+        print(
+            f"Mean final spread (available cases): "
+            f"{mean(spreads):.5f}"
+        )
+    else:
+        print("Mean final spread: unavailable in all seeds")
+
+
+all_results = {}
+
+for scenario in SCENARIOS:
+    policy = scenario["policy"]
+    results = [
+        audit(seed=seed, policy=policy)
+        for seed in SEEDS
+    ]
+    all_results[policy] = results
+
+    print("\n" + "#" * 76)
+    print(f"POLICY: {scenario['name']}")
+    print("#" * 76)
+
+    print(
+        f"{'Seed':>6s} "
+        f"{'Submitted':>10s} "
+        f"{'Trades':>9s} "
+        f"{'Cancelled':>10s} "
+        f"{'Both (%)':>10s} "
+        f"{'Empty (%)':>10s} "
+        f"{'Longest':>9s} "
+        f"{'No bid?':>8s} "
+        f"{'No ask?':>8s}"
+    )
+
+    for result in results:
+        print(
+            f"{result['seed']:6d} "
+            f"{result['submitted']:10d} "
+            f"{result['trades']:9d} "
+            f"{result['cancelled']:10d} "
+            f"{result['both_present_pct']:10.2f} "
+            f"{result['both_empty_pct']:10.2f} "
+            f"{result['longest_empty_run']:9d} "
+            f"{str(result['final_no_bid']):>8s} "
+            f"{str(result['final_no_ask']):>8s}"
+        )
+
+    print_summary(policy, results)
+
+
+print("\n" + "#" * 76)
+print("PHASE 20.5.8 COMPLETE: MULTI-SEED COMPARISON")
+print("#" * 76)
