@@ -3,6 +3,7 @@ from src.order_book_l3 import OrderBookL3
 from src.matching_engine_l3 import MatchingEngineL3
 from src.synthetic_market import SyntheticMarket
 from src.market_data import OrderSide
+import random
 
 
 class Simulation:
@@ -20,6 +21,10 @@ class Simulation:
                 "cancellation_policy must be "
                 "'none', 'random', or 'distance'"
             )
+
+        self.cancellation_random = random.Random(
+            None if seed is None else seed + 1_000_003
+        )
 
         self.cancellation_policy = cancellation_policy
 
@@ -72,6 +77,19 @@ class Simulation:
             ),
         )
 
+    def should_cancel_order(self):
+        return (
+            self.cancellation_random.random()
+            < self.market.cancellation_probability
+        )
+
+
+    def choose_order_to_cancel_random(self, eligible_ids):
+        if not eligible_ids:
+            return None
+
+        return self.cancellation_random.choice(eligible_ids)
+
     def run(self, num_events):
         for _ in range(num_events):
             cancellable_ids = self.get_cancellable_order_ids()
@@ -79,16 +97,14 @@ class Simulation:
             should_cancel = (
                 self.cancellation_policy != "none"
                 and bool(cancellable_ids)
-                and self.market.should_cancel_order()
+                and self.should_cancel_order()
             )
 
             if should_cancel:
                 previous_book = self.book.snapshot()
 
                 if self.cancellation_policy == "random":
-                    order_id = self.market.choose_order_to_cancel(
-                        cancellable_ids
-                    )
+                    order_id = self.choose_order_to_cancel_random(cancellable_ids)
                 else:
                     order_id = self.choose_order_to_cancel_by_distance(
                         cancellable_ids
