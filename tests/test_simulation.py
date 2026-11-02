@@ -198,3 +198,16 @@ def test_no_cancellation_submits_one_order_per_event():
     ]
 
     assert "cancelled" not in statuses
+
+
+def test_run_until_submissions_reaches_target():
+    sim = Simulation(
+        seed=42,
+        cancellation_probability=0.10,
+        cancellation_policy="random",
+    )
+
+    states = sim.run_until_submissions(100)
+
+    assert len(sim.book.order_history) == 100
+    assert len(states) >= 100

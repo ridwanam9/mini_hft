@@ -22,7 +22,7 @@ def audit(seed, policy):
         cancellation_probability=CANCELLATION_PROBABILITY,
         cancellation_policy=policy,
     )
-    states = sim.run(NUM_EVENTS)
+    states = sim.run_until_submissions(NUM_EVENTS)
 
     conditions = Counter()
     longest_empty_run = 0

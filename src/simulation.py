@@ -146,3 +146,24 @@ class Simulation:
             )
 
         return self.state_recorder.states
+
+    def run_until_submissions(self, target_submissions, max_events=None):
+        """Run until the target number of orders has been submitted."""
+        if target_submissions < 0:
+            raise ValueError("target_submissions must be non-negative")
+
+        if max_events is None:
+            max_events = target_submissions * 3 + 100
+
+        events_processed = 0
+
+        while len(self.book.order_history) < target_submissions:
+            if events_processed >= max_events:
+                raise RuntimeError(
+                    "Maximum events reached before target submissions"
+                )
+
+            self.run(1)
+            events_processed += 1
+
+        return self.state_recorder.states
