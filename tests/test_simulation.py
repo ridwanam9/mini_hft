@@ -174,3 +174,27 @@ def test_distance_based_cancellation_selects_farthest_order():
 
 
 
+def test_invalid_cancellation_policy_is_rejected():
+    import pytest
+
+    with pytest.raises(ValueError):
+        Simulation(cancellation_policy="invalid")
+
+
+def test_no_cancellation_submits_one_order_per_event():
+    sim = Simulation(
+        seed=42,
+        cancellation_probability=1.0,
+        cancellation_policy="none",
+    )
+
+    states = sim.run(100)
+
+    assert len(states) == 100
+
+    statuses = [
+        record["status"]
+        for record in sim.book.order_history.values()
+    ]
+
+    assert "cancelled" not in statuses

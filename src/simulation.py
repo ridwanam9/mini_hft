@@ -13,7 +13,16 @@ class Simulation:
         tick_size=0.01,
         time_step=0.001,
         cancellation_probability=0.10,
+        cancellation_policy="distance",
     ):
+        if cancellation_policy not in {"none", "random", "distance"}:
+            raise ValueError(
+                "cancellation_policy must be "
+                "'none', 'random', or 'distance'"
+            )
+
+        self.cancellation_policy = cancellation_policy
+
         self.market = SyntheticMarket(
             start_price=start_price,
             tick_size=tick_size,
@@ -26,10 +35,9 @@ class Simulation:
         self.engine = MatchingEngineL3(self.book)
         self.state_recorder = MarketStateRecorder()
 
-    
     def get_cancellable_order_ids(self):
-        """Return active orders whose cancellation won't
-        remove the last resting order from their side.
+        """Return active orders whose cancellation won't remove
+        the last resting order from their side.
         """
         bid_order_ids = []
         ask_order_ids = []
@@ -50,24 +58,43 @@ class Simulation:
 
         return eligible_ids
 
+    def choose_order_to_cancel_by_distance(self, eligible_ids):
+        """Choose the eligible order farthest from fair value."""
+        if not eligible_ids:
+            return None
+
+        fair_value = self.market.fair_value
+
+        return max(
+            eligible_ids,
+            key=lambda order_id: abs(
+                self.book.order_index[order_id][1] - fair_value
+            ),
+        )
 
     def run(self, num_events):
         for _ in range(num_events):
-            # Phase 20.5.5.1: Protect the last resting order.
             cancellable_ids = self.get_cancellable_order_ids()
 
-            if (
-                cancellable_ids
+            should_cancel = (
+                self.cancellation_policy != "none"
+                and bool(cancellable_ids)
                 and self.market.should_cancel_order()
-            ):
+            )
+
+            if should_cancel:
                 previous_book = self.book.snapshot()
 
-                order_id = self.choose_order_to_cancel_by_distance(
-                    cancellable_ids
-                )
+                if self.cancellation_policy == "random":
+                    order_id = self.market.choose_order_to_cancel(
+                        cancellable_ids
+                    )
+                else:
+                    order_id = self.choose_order_to_cancel_by_distance(
+                        cancellable_ids
+                    )
 
                 timestamp = self.market.next_timestamp()
-
                 self.book.cancel_order(
                     order_id,
                     timestamp=timestamp,
@@ -81,11 +108,9 @@ class Simulation:
                     timestamp=timestamp,
                     trade=None,
                 )
-
                 continue
 
-            # Jika tidak melakukan cancellation,
-            # lanjutkan dengan pembuatan dan pemrosesan order baru.
+            # If cancellation does not occur, generate and process a new order.
             order = self.market.generate_order()
 
             previous_book = self.book.snapshot()
@@ -104,20 +129,4 @@ class Simulation:
                 trade=last_trade,
             )
 
-
         return self.state_recorder.states
-
-    
-    def choose_order_to_cancel_by_distance(self, eligible_ids):
-        """Choose the eligible order farthest from fair value."""
-        if not eligible_ids:
-            return None
-
-        fair_value = self.market.fair_value
-
-        return max(
-            eligible_ids,
-            key=lambda order_id: abs(
-                self.book.order_index[order_id][1] - fair_value
-            ),
-        )

@@ -5,12 +5,29 @@ from src.simulation import Simulation
 
 NUM_EVENTS = 10_000
 SEED = 42
+CANCELLATION_PROBABILITY = 0.10
+
+SCENARIOS = [
+    {
+        "name": "NO CANCELLATION",
+        "policy": "none",
+    },
+    {
+        "name": "RANDOM CANCELLATION",
+        "policy": "random",
+    },
+    {
+        "name": "DISTANCE-BASED CANCELLATION",
+        "policy": "distance",
+    },
+]
 
 
-def audit(probability):
+def audit(policy, probability):
     sim = Simulation(
         seed=SEED,
         cancellation_probability=probability,
+        cancellation_policy=policy,
     )
     states = sim.run(NUM_EVENTS)
 
@@ -47,6 +64,8 @@ def audit(probability):
     )
 
     return {
+        "name": policy,
+        "policy": policy,
         "probability": probability,
         "states": len(states),
         "submitted": len(sim.book.order_history),
@@ -62,17 +81,22 @@ def audit(probability):
 
 
 results = [
-    audit(0.0),
-    audit(0.10),
+    audit(
+        policy=scenario["policy"],
+        probability=CANCELLATION_PROBABILITY,
+    )
+    for scenario in SCENARIOS
 ]
 
 for result in results:
-    print("\n" + "=" * 55)
+    print("\n" + "=" * 60)
+    print("SCENARIO:", result["name"])
+    print("Cancellation policy:", result["policy"])
     print(
-        "CANCELLATION PROBABILITY:",
+        "Cancellation probability:",
         result["probability"],
     )
-    print("=" * 55)
+    print("=" * 60)
 
     print(f"Recorded states: {result['states']}")
     print(f"Submitted orders: {result['submitted']}")
@@ -94,9 +118,10 @@ for result in results:
         "BOTH_EMPTY",
     ):
         count = result["conditions"][condition]
+        percentage = count / result["states"] if result["states"] else 0
         print(
             f"{condition:15s}: "
-            f"{count:5d} ({count / result['states']:.2%})"
+            f"{count:5d} ({percentage:.2%})"
         )
 
     print(
