@@ -211,3 +211,27 @@ def test_run_until_submissions_reaches_target():
 
     assert len(sim.book.order_history) == 100
     assert len(states) >= 100
+
+
+
+def test_cancellation_does_not_replace_submission():
+    sim = Simulation(
+        seed=42,
+        cancellation_probability=1.0,
+        cancellation_policy="random",
+    )
+
+    target_submissions = 200
+
+    states = sim.run_until_submissions(target_submissions)
+
+    statuses = [
+        record["status"]
+        for record in sim.book.order_history.values()
+    ]
+
+    cancelled_count = statuses.count("cancelled")
+
+    assert len(sim.book.order_history) == target_submissions
+    assert len(states) == target_submissions
+    assert cancelled_count > 0

@@ -90,8 +90,20 @@ class Simulation:
 
         return self.cancellation_random.choice(eligible_ids)
 
+    
     def run(self, num_events):
         for _ in range(num_events):
+            # Save the initial order book state.
+            previous_book = self.book.snapshot()
+
+            # Generate and submit one order on every event.
+            order = self.market.generate_order()
+
+            tape_length_before = len(self.engine.trade_tape)
+
+            self.engine.submit_order(order)
+
+            # Check whether cancellation should happen AFTER submission.
             cancellable_ids = self.get_cancellable_order_ids()
 
             should_cancel = (
@@ -101,40 +113,24 @@ class Simulation:
             )
 
             if should_cancel:
-                previous_book = self.book.snapshot()
-
                 if self.cancellation_policy == "random":
-                    order_id = self.choose_order_to_cancel_random(cancellable_ids)
+                    order_id = self.choose_order_to_cancel_random(
+                        cancellable_ids
+                    )
                 else:
                     order_id = self.choose_order_to_cancel_by_distance(
                         cancellable_ids
                     )
 
-                timestamp = self.market.next_timestamp()
-                self.book.cancel_order(
-                    order_id,
-                    timestamp=timestamp,
-                )
+                if order_id is not None:
+                    self.book.cancel_order(
+                        order_id,
+                        timestamp=order.timestamp,
+                    )
 
-                current_book = self.book.snapshot()
-
-                self.state_recorder.record(
-                    previous_book=previous_book,
-                    current_book=current_book,
-                    timestamp=timestamp,
-                    trade=None,
-                )
-                continue
-
-            # If cancellation does not occur, generate and process a new order.
-            order = self.market.generate_order()
-
-            previous_book = self.book.snapshot()
-            tape_length_before = len(self.engine.trade_tape)
-
-            self.engine.submit_order(order)
-
+            # Capture the final state after submission and cancellation.
             current_book = self.book.snapshot()
+
             new_trades = self.engine.trade_tape[tape_length_before:]
             last_trade = new_trades[-1] if new_trades else None
 
@@ -146,6 +142,7 @@ class Simulation:
             )
 
         return self.state_recorder.states
+
 
     def run_until_submissions(self, target_submissions, max_events=None):
         """Run until the target number of orders has been submitted."""
