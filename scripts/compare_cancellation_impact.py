@@ -58,6 +58,23 @@ def audit(seed, policy):
 
     total_states = len(states)
 
+    total_events = total_states
+
+    trades_per_event = (
+        len(sim.engine.trade_tape) / total_events
+        if total_events else 0.0
+    )
+
+    filled_per_event = (
+        statuses["filled"] / total_events
+        if total_events else 0.0
+    )
+
+    cancellations_per_event = (
+        statuses["cancelled"] / total_events
+        if total_events else 0.0
+    )
+
     return {
         "seed": seed,
         "policy": policy,
@@ -88,6 +105,10 @@ def audit(seed, policy):
         "final_no_bid": sim.book.best_bid is None,
         "final_no_ask": sim.book.best_ask is None,
         "final_spread": sim.book.spread,
+        "total_events": total_events,
+        "trades_per_event": trades_per_event,
+        "filled_per_event": filled_per_event,
+        "cancellations_per_event": cancellations_per_event,
     }
 
 
@@ -97,11 +118,15 @@ def print_summary(policy, results):
     print("=" * 76)
 
     metrics = [
+        ("Total events", "total_events"),
         ("Submitted orders", "submitted"),
         ("Trade records", "trades"),
         ("Filled orders", "filled"),
         ("Cancelled orders", "cancelled"),
         ("Expired orders", "expired"),
+        ("Trades per event", "trades_per_event"),
+        ("Filled per event", "filled_per_event"),
+        ("Cancellations per event", "cancellations_per_event"),
         ("BOTH_PRESENT (%)", "both_present_pct"),
         ("BID_EMPTY (%)", "bid_empty_pct"),
         ("ASK_EMPTY (%)", "ask_empty_pct"),
@@ -162,9 +187,11 @@ for scenario in SCENARIOS:
 
     print(
         f"{'Seed':>6s} "
+        f"{'Events':>10s} "
         f"{'Submitted':>10s} "
         f"{'Trades':>9s} "
         f"{'Cancelled':>10s} "
+        f"{'Trades/Event':>12s} "
         f"{'Both (%)':>10s} "
         f"{'Empty (%)':>10s} "
         f"{'Longest':>9s} "
@@ -175,9 +202,11 @@ for scenario in SCENARIOS:
     for result in results:
         print(
             f"{result['seed']:6d} "
+            f"{result['total_events']:10d} "
             f"{result['submitted']:10d} "
             f"{result['trades']:9d} "
             f"{result['cancelled']:10d} "
+            f"{result['trades_per_event']:12.4f} "
             f"{result['both_present_pct']:10.2f} "
             f"{result['both_empty_pct']:10.2f} "
             f"{result['longest_empty_run']:9d} "
