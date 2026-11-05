@@ -91,13 +91,20 @@ class OrderBookL3:
                 "original_quantity": order.quantity,
                 "remaining_quantity": order.quantity,
                 "status": "active",
+                "book_entry_time": order.timestamp,
                 "first_fill_time": None,
+                "first_resting_fill_time": None,
                 "completion_time": None,
                 "executed_quantity": 0,
             }
         else:
-            self.order_history[order.order_id]["status"] = "active"
-            self.order_history[order.order_id]["remaining_quantity"] = order.quantity
+            history = self.order_history[order.order_id]
+
+            history["status"] = "active"
+            history["remaining_quantity"] = order.quantity
+
+            if history.get("book_entry_time") is None:
+                history["book_entry_time"] = order.timestamp
 
     def cancel_order(self, order_id: int, timestamp=None) -> bool:
         entry = self.order_index.get(order_id)

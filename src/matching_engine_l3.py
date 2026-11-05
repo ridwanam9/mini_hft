@@ -31,7 +31,9 @@ class MatchingEngineL3:
             "original_quantity": order.quantity,
             "remaining_quantity": order.quantity,
             "status": "submitted",
+            "book_entry_time": None,
             "first_fill_time": None,
+            "first_resting_fill_time": None,
             "completion_time": None,
             "executed_quantity": 0,
         }
@@ -116,6 +118,9 @@ class MatchingEngineL3:
 
             if resting_history["first_fill_time"] is None:
                 resting_history["first_fill_time"] = order.timestamp
+
+            if resting_history["first_resting_fill_time"] is None:
+                resting_history["first_resting_fill_time"] = order.timestamp
 
             incoming_history["executed_quantity"] += executed
             incoming_history["remaining_quantity"] -= executed
