@@ -96,12 +96,16 @@ class OrderBookL3:
                 "first_resting_fill_time": None,
                 "completion_time": None,
                 "executed_quantity": 0,
+                "aggressive_executed_quantity": 0,
+                "passive_executed_quantity": 0,
             }
         else:
             history = self.order_history[order.order_id]
-
             history["status"] = "active"
             history["remaining_quantity"] = order.quantity
+
+            history.setdefault("aggressive_executed_quantity", 0)
+            history.setdefault("passive_executed_quantity", 0)
 
             if history.get("book_entry_time") is None:
                 history["book_entry_time"] = order.timestamp

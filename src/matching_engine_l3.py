@@ -36,6 +36,8 @@ class MatchingEngineL3:
             "first_resting_fill_time": None,
             "completion_time": None,
             "executed_quantity": 0,
+            "aggressive_executed_quantity": 0,
+            "passive_executed_quantity": 0,
         }
 
         self.book.seen_order_ids.add(order.order_id)
@@ -122,10 +124,14 @@ class MatchingEngineL3:
             if resting_history["first_resting_fill_time"] is None:
                 resting_history["first_resting_fill_time"] = order.timestamp
 
+            # Incoming order acts as the aggressive order.
             incoming_history["executed_quantity"] += executed
+            incoming_history["aggressive_executed_quantity"] += executed
             incoming_history["remaining_quantity"] -= executed
 
+            # Resting order acts as the passive order.
             resting_history["executed_quantity"] += executed
+            resting_history["passive_executed_quantity"] += executed
             resting_history["remaining_quantity"] -= executed
 
             # Update actual order quantities.
