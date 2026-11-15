@@ -70,7 +70,11 @@ class PassiveAggressiveExecutionAnalyzer:
                 "has_aggressive_fill": aggressive_quantity > 0,
                 "has_passive_fill": passive_quantity > 0,
 
-                "is_completed": status in {"filled", "cancelled"},
+                "is_completed": status in {
+                    "filled",
+                    "cancelled",
+                    "expired",
+                },
                 "is_active": status == "active",
 
                 "quantity_consistent": quantity_consistent,
@@ -90,6 +94,10 @@ class PassiveAggressiveExecutionAnalyzer:
             obs for obs in observations
             if obs["is_active"]
         ]
+
+        assert len(completed) + len(active) == len(observations), (
+            "Order classification mismatch"
+        )
 
         def summarize(group):
             aggressive_quantities = [
