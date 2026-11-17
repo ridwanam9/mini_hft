@@ -45,6 +45,15 @@ class MatchingEngineL3:
         fills = []
         remaining = order.quantity
 
+        # Capture market benchmark before matching.
+        best_bid = self.book.best_bid
+        best_ask = self.book.best_ask
+
+        arrival_mid_price = None
+
+        if best_bid is not None and best_ask is not None:
+            arrival_mid_price = (best_bid + best_ask) / 2
+
         opposite = (
             self.book.ask_orders
             if order.side == OrderSide.BUY
@@ -105,6 +114,7 @@ class MatchingEngineL3:
                     ),
                     buy_order_id=buy_id,
                     sell_order_id=sell_id,
+                    arrival_mid_price=arrival_mid_price,
                 )
             )
 
