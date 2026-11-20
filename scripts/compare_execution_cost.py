@@ -3,7 +3,7 @@ from statistics import mean, pstdev
 
 from src.simulation import Simulation
 from src.execution_cost_analyzer import ExecutionCostAnalyzer
-
+from src.order_book_state_analyzer import OrderBookStateAnalyzer
 
 NUM_SUBMISSIONS = 10_000
 SEEDS = [42, 123, 456, 789, 2026]
@@ -26,6 +26,12 @@ def run_experiment(policy, seed):
     )
 
     result = analyzer.analyze()
+
+    state_analyzer = OrderBookStateAnalyzer(
+        simulation.engine.trade_tape
+    )
+
+    state_result = state_analyzer.analyze()
 
     missing_buy = sum(
         trade.aggressor == "BUY"
@@ -71,8 +77,15 @@ def run_experiment(policy, seed):
     raw_trade_count = len(simulation.engine.trade_tape)
     analyzed_trade_count = result["total_trades"]
 
+    if state_result["total_trades"] != raw_trade_count:
+        raise AssertionError("Order book state trade count mismatch")
+
+    if state_result["total_quantity"] != total_trade_quantity:
+        raise AssertionError("Order book state quantity mismatch")
+
     return {
         "result": result,
+        "state_result": state_result,
         "raw_trade_count": raw_trade_count,
         "analyzed_trade_count": analyzed_trade_count,
         "skipped_trade_count": (
@@ -133,6 +146,21 @@ def main():
             policy_results.append(experiment)
 
             result = experiment["result"]
+
+            state_result = experiment["state_result"]
+
+            print("\n         ORDER BOOK STATE")
+
+            for category in ["TWO_SIDED", "ASK_ONLY", "BID_ONLY", "EMPTY"]:
+                state = state_result[category]
+
+                print(
+                    f"         {category:<12} | "
+                    f"Trades: {state['trade_count']:>5} | "
+                    f"Quantity: {state['total_quantity']:>8} | "
+                    f"BUY: {state['buy_count']:>5} | "
+                    f"SELL: {state['sell_count']:>5}"
+                )
 
             print(
                 f"Seed {seed:>4} | "
