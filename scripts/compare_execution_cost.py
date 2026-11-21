@@ -1,9 +1,10 @@
-
 from statistics import mean, pstdev
 
 from src.simulation import Simulation
 from src.execution_cost_analyzer import ExecutionCostAnalyzer
 from src.order_book_state_analyzer import OrderBookStateAnalyzer
+from src.spread_cost_analyzer import SpreadCostAnalyzer
+
 
 NUM_SUBMISSIONS = 10_000
 SEEDS = [42, 123, 456, 789, 2026]
@@ -21,71 +22,92 @@ def run_experiment(policy, seed):
 
     simulation.run_until_submissions(NUM_SUBMISSIONS)
 
-    analyzer = ExecutionCostAnalyzer(
-        simulation.engine.trade_tape
-    )
+    trade_tape = simulation.engine.trade_tape
 
+    # Execution cost analysis
+    analyzer = ExecutionCostAnalyzer(trade_tape)
     result = analyzer.analyze()
 
-    state_analyzer = OrderBookStateAnalyzer(
-        simulation.engine.trade_tape
-    )
-
+    # Order book state analysis
+    state_analyzer = OrderBookStateAnalyzer(trade_tape)
     state_result = state_analyzer.analyze()
 
+    # Spread cost decomposition
+    spread_analyzer = SpreadCostAnalyzer(trade_tape)
+    spread_result = spread_analyzer.analyze()
+
+    # Trade coverage
     missing_buy = sum(
         trade.aggressor == "BUY"
         and trade.arrival_mid_price is None
-        for trade in simulation.engine.trade_tape
+        for trade in trade_tape
     )
 
     missing_sell = sum(
         trade.aggressor == "SELL"
         and trade.arrival_mid_price is None
-        for trade in simulation.engine.trade_tape
+        for trade in trade_tape
     )
 
     valid_buy = sum(
         trade.aggressor == "BUY"
         and trade.arrival_mid_price is not None
-        for trade in simulation.engine.trade_tape
+        for trade in trade_tape
     )
 
     valid_sell = sum(
         trade.aggressor == "SELL"
         and trade.arrival_mid_price is not None
-        for trade in simulation.engine.trade_tape
+        for trade in trade_tape
     )
 
     valid_quantity = sum(
         trade.quantity
-        for trade in simulation.engine.trade_tape
+        for trade in trade_tape
         if trade.arrival_mid_price is not None
     )
 
     missing_quantity = sum(
         trade.quantity
-        for trade in simulation.engine.trade_tape
+        for trade in trade_tape
         if trade.arrival_mid_price is None
     )
 
     total_trade_quantity = sum(
         trade.quantity
-        for trade in simulation.engine.trade_tape
+        for trade in trade_tape
     )
 
-    raw_trade_count = len(simulation.engine.trade_tape)
+    raw_trade_count = len(trade_tape)
     analyzed_trade_count = result["total_trades"]
 
+    # Consistency checks
     if state_result["total_trades"] != raw_trade_count:
-        raise AssertionError("Order book state trade count mismatch")
+        raise AssertionError(
+            "Order book state trade count mismatch"
+        )
 
     if state_result["total_quantity"] != total_trade_quantity:
-        raise AssertionError("Order book state quantity mismatch")
+        raise AssertionError(
+            "Order book state quantity mismatch"
+        )
+
+    if spread_result["overall"]["trade_count"] != analyzed_trade_count:
+        raise AssertionError(
+            "Spread cost and execution cost trade count mismatch"
+        )
+
+    if spread_result["skipped_count"] != (
+        raw_trade_count - analyzed_trade_count
+    ):
+        raise AssertionError(
+            "Spread cost skipped trade count mismatch"
+        )
 
     return {
         "result": result,
         "state_result": state_result,
+        "spread_result": spread_result,
         "raw_trade_count": raw_trade_count,
         "analyzed_trade_count": analyzed_trade_count,
         "skipped_trade_count": (
@@ -119,18 +141,197 @@ def summarize_results(results, metric_path):
     return mean(values), pstdev(values)
 
 
+def summarize_spread_results(results, metric_path, aggressor=None):
+    values = []
+
+    for item in results:
+        spread_result = item["spread_result"]
+
+        if aggressor is None:
+            value = spread_result["overall"]
+        else:
+            value = spread_result["by_aggressor"].get(aggressor)
+
+        if value is None:
+            continue
+
+        for key in metric_path:
+            value = value.get(key)
+
+            if value is None:
+                break
+
+        if value is not None:
+            values.append(value)
+
+    if not values:
+        return None, None
+
+    return mean(values), pstdev(values)
+
+
 def print_metric(label, results, metric_path):
     avg, std = summarize_results(results, metric_path)
 
     if avg is None:
-        print(f"{label:<42} N/A")
+        print(f"{label:<48} N/A")
         return
 
     print(
-        f"{label:<42} "
-        f"{avg:>10.4f} "
-        f"{std:>10.4f}"
+        f"{label:<48} "
+        f"{avg:>12.4f} "
+        f"{std:>12.4f}"
     )
+
+
+def print_spread_metric(
+    label,
+    results,
+    metric_path,
+    aggressor=None,
+):
+    avg, std = summarize_spread_results(
+        results,
+        metric_path,
+        aggressor,
+    )
+
+    if avg is None:
+        print(f"{label:<48} N/A")
+        return
+
+    print(
+        f"{label:<48} "
+        f"{avg:>12.4f} "
+        f"{std:>12.4f}"
+    )
+
+
+def print_spread_decomposition(results):
+    print("\nSPREAD COST DECOMPOSITION")
+    print("-" * 75)
+
+    print(
+        f"{'Metric':<48} "
+        f"{'Mean':>12} "
+        f"{'Std dev':>12}"
+    )
+
+    print("\nOVERALL COST")
+    print("-" * 75)
+
+    print_spread_metric(
+        "Average half-spread cost",
+        results,
+        ("average_total_half_spread_cost",),
+    )
+
+    print_spread_metric(
+        "Average beyond-touch cost",
+        results,
+        ("average_total_beyond_touch_cost",),
+    )
+
+    print_spread_metric(
+        "Average total execution cost",
+        results,
+        ("average_total_cost",),
+    )
+
+    print("\nOVERALL COST (BPS)")
+    print("-" * 75)
+
+    print_spread_metric(
+        "Average half-spread cost (bps)",
+        results,
+        ("average_total_half_spread_bps",),
+    )
+
+    print_spread_metric(
+        "Average beyond-touch cost (bps)",
+        results,
+        ("average_total_beyond_touch_bps",),
+    )
+
+    print_spread_metric(
+        "Average total execution cost (bps)",
+        results,
+        ("average_total_cost_bps",),
+    )
+
+    print("\nQUANTITY-WEIGHTED COST")
+    print("-" * 75)
+
+    print_spread_metric(
+        "Quantity-weighted half-spread cost",
+        results,
+        ("quantity_weighted_half_spread_cost",),
+    )
+
+    print_spread_metric(
+        "Quantity-weighted beyond-touch cost",
+        results,
+        ("quantity_weighted_beyond_touch_cost",),
+    )
+
+    print_spread_metric(
+        "Quantity-weighted total execution cost",
+        results,
+        ("quantity_weighted_cost",),
+    )
+
+    print("\nQUANTITY-WEIGHTED COST (BPS)")
+    print("-" * 75)
+
+    print_spread_metric(
+        "Quantity-weighted half-spread cost (bps)",
+        results,
+        ("quantity_weighted_half_spread_bps",),
+    )
+
+    print_spread_metric(
+        "Quantity-weighted beyond-touch cost (bps)",
+        results,
+        ("quantity_weighted_beyond_touch_bps",),
+    )
+
+    print_spread_metric(
+        "Quantity-weighted total execution cost (bps)",
+        results,
+        ("quantity_weighted_cost_bps",),
+    )
+
+    for aggressor in ["BUY", "SELL"]:
+        print(f"\n{aggressor} AGGRESSOR DECOMPOSITION")
+        print("-" * 75)
+
+        print_spread_metric(
+            f"{aggressor} half-spread cost (bps)",
+            results,
+            ("average_total_half_spread_bps",),
+            aggressor,
+        )
+
+        print_spread_metric(
+            f"{aggressor} beyond-touch cost (bps)",
+            results,
+            ("average_total_beyond_touch_bps",),
+            aggressor,
+        )
+
+        print_spread_metric(
+            f"{aggressor} total execution cost (bps)",
+            results,
+            ("average_total_cost_bps",),
+            aggressor,
+        )
+
+        print_spread_metric(
+            f"{aggressor} quantity-weighted total cost (bps)",
+            results,
+            ("quantity_weighted_cost_bps",),
+            aggressor,
+        )
 
 
 def main():
@@ -146,12 +347,16 @@ def main():
             policy_results.append(experiment)
 
             result = experiment["result"]
-
             state_result = experiment["state_result"]
 
             print("\n         ORDER BOOK STATE")
 
-            for category in ["TWO_SIDED", "ASK_ONLY", "BID_ONLY", "EMPTY"]:
+            for category in [
+                "TWO_SIDED",
+                "ASK_ONLY",
+                "BID_ONLY",
+                "EMPTY",
+            ]:
                 state = state_result[category]
 
                 print(
@@ -169,6 +374,7 @@ def main():
                 f"Skipped: {experiment['skipped_trade_count']:>5} | "
                 f"Valid Quantity: {result['total_quantity']:>8}"
             )
+
             print(
                 f"         Valid BUY: {experiment['valid_buy']} | "
                 f"Missing BUY: {experiment['missing_buy']}"
@@ -198,9 +404,9 @@ def main():
         print("=" * 95)
 
         print(
-            f"{'Metric':<42} "
-            f"{'Mean':>10} "
-            f"{'Std dev':>10}"
+            f"{'Metric':<48} "
+            f"{'Mean':>12} "
+            f"{'Std dev':>12}"
         )
 
         print_metric(
@@ -210,7 +416,7 @@ def main():
         )
 
         print_metric(
-            "Total executed quantity",
+            "Analyzed executed quantity",
             policy_results,
             ("total_quantity",),
         )
@@ -240,7 +446,7 @@ def main():
         )
 
         print("\nBUY AGGRESSOR")
-        print("-" * 65)
+        print("-" * 75)
 
         print_metric(
             "BUY average cost (bps)",
@@ -255,7 +461,7 @@ def main():
         )
 
         print("\nSELL AGGRESSOR")
-        print("-" * 65)
+        print("-" * 75)
 
         print_metric(
             "SELL average cost (bps)",
@@ -268,6 +474,9 @@ def main():
             policy_results,
             ("sell", "quantity_weighted_execution_cost_bps"),
         )
+
+        # New: spread cost decomposition
+        print_spread_decomposition(policy_results)
 
         total_raw = sum(
             item["raw_trade_count"]
@@ -285,7 +494,7 @@ def main():
         )
 
         print("\nDATA COVERAGE")
-        print("-" * 65)
+        print("-" * 75)
         print(f"Raw trades:       {total_raw}")
         print(f"Analyzed trades:  {total_analyzed}")
         print(f"Skipped trades:   {total_skipped}")
