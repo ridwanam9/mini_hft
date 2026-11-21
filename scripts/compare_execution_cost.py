@@ -81,6 +81,44 @@ def run_experiment(policy, seed):
     raw_trade_count = len(trade_tape)
     analyzed_trade_count = result["total_trades"]
 
+    # Coverage rates
+    valid_trade_rate = (
+        analyzed_trade_count / raw_trade_count
+        if raw_trade_count > 0
+        else 0
+    )
+
+    missing_trade_rate = (
+        1 - valid_trade_rate
+    )
+
+    valid_quantity_rate = (
+        valid_quantity / total_trade_quantity
+        if total_trade_quantity > 0
+        else 0
+    )
+
+    missing_quantity_rate = (
+        missing_quantity / total_trade_quantity
+        if total_trade_quantity > 0
+        else 0
+    )
+
+    total_buy_trades = valid_buy + missing_buy
+    total_sell_trades = valid_sell + missing_sell
+
+    valid_buy_rate = (
+        valid_buy / total_buy_trades
+        if total_buy_trades > 0
+        else 0
+    )
+
+    valid_sell_rate = (
+        valid_sell / total_sell_trades
+        if total_sell_trades > 0
+        else 0
+    )
+
     # Consistency checks
     if state_result["total_trades"] != raw_trade_count:
         raise AssertionError(
@@ -104,6 +142,22 @@ def run_experiment(policy, seed):
             "Spread cost skipped trade count mismatch"
         )
 
+    if (
+        state_result["TWO_SIDED"]["trade_count"]
+        != analyzed_trade_count
+    ):
+        raise AssertionError(
+            "Two-sided trade count does not match analyzed trades"
+        )
+
+    if (
+        state_result["TWO_SIDED"]["total_quantity"]
+        != valid_quantity
+    ):
+        raise AssertionError(
+            "Two-sided quantity does not match valid quantity"
+        )
+
     return {
         "result": result,
         "state_result": state_result,
@@ -120,6 +174,12 @@ def run_experiment(policy, seed):
         "valid_quantity": valid_quantity,
         "missing_quantity": missing_quantity,
         "total_trade_quantity": total_trade_quantity,
+        "valid_trade_rate": valid_trade_rate,
+        "missing_trade_rate": missing_trade_rate,
+        "valid_quantity_rate": valid_quantity_rate,
+        "missing_quantity_rate": missing_quantity_rate,
+        "valid_buy_rate": valid_buy_rate,
+        "valid_sell_rate": valid_sell_rate,
     }
 
 
@@ -333,6 +393,80 @@ def print_spread_decomposition(results):
             aggressor,
         )
 
+def print_coverage_summary(results):
+    print("\nEXECUTION COST DATA COVERAGE ANALYSIS")
+    print("-" * 85)
+
+    print(
+        f"{'Coverage metric':<42} "
+        f"{'Mean':>12} "
+        f"{'Std dev':>12}"
+    )
+
+    metrics = [
+        ("Valid trade coverage", "valid_trade_rate"),
+        ("Missing trade coverage", "missing_trade_rate"),
+        ("Valid quantity coverage", "valid_quantity_rate"),
+        ("Missing quantity coverage", "missing_quantity_rate"),
+        ("BUY valid coverage", "valid_buy_rate"),
+        ("SELL valid coverage", "valid_sell_rate"),
+    ]
+
+    for label, key in metrics:
+        values = [item[key] for item in results]
+
+        avg = mean(values)
+        std = pstdev(values)
+
+        print(
+            f"{label:<42} "
+            f"{avg:>11.2%} "
+            f"{std:>11.2%}"
+        )
+
+    print("\nORDER BOOK STATE DISTRIBUTION")
+    print("-" * 85)
+
+    print(
+        f"{'State':<20} "
+        f"{'Trade share':>15} "
+        f"{'Quantity share':>20}"
+    )
+
+    categories = ["TWO_SIDED", "ASK_ONLY", "BID_ONLY", "EMPTY",]
+
+    for category in categories:
+        trade_shares = []
+        quantity_shares = []
+
+        for item in results:
+            state = item["state_result"][category]
+
+            raw_count = item["raw_trade_count"]
+            total_quantity = item["total_trade_quantity"]
+
+            trade_share = (
+                state["trade_count"] / raw_count
+                if raw_count > 0
+                else 0
+            )
+
+            quantity_share = (
+                state["total_quantity"] / total_quantity
+                if total_quantity > 0
+                else 0
+            )
+
+            trade_shares.append(trade_share)
+            quantity_shares.append(quantity_share)
+
+        print(
+            f"{category:<20} "
+            f"{mean(trade_shares):>14.2%} "
+            f"{mean(quantity_shares):>19.2%}"
+        )
+
+
 
 def main():
     for policy in POLICIES:
@@ -477,6 +611,7 @@ def main():
 
         # New: spread cost decomposition
         print_spread_decomposition(policy_results)
+        print_coverage_summary(policy_results)
 
         total_raw = sum(
             item["raw_trade_count"]
