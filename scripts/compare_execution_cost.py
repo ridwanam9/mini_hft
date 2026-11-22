@@ -4,7 +4,7 @@ from src.simulation import Simulation
 from src.execution_cost_analyzer import ExecutionCostAnalyzer
 from src.order_book_state_analyzer import OrderBookStateAnalyzer
 from src.spread_cost_analyzer import SpreadCostAnalyzer
-
+from collections import defaultdict
 
 NUM_SUBMISSIONS = 10_000
 SEEDS = [42, 123, 456, 789, 2026]
@@ -23,6 +23,57 @@ def run_experiment(policy, seed):
     simulation.run_until_submissions(NUM_SUBMISSIONS)
 
     trade_tape = simulation.engine.trade_tape
+
+    spread_distribution = defaultdict(
+        lambda: {
+            "trade_count": 0,
+            "total_quantity": 0,
+            "total_cost_bps": 0.0,
+            "quantity_weighted_cost_bps": 0.0,
+        }
+    )
+
+    for trade in trade_tape:
+        if (
+            trade.arrival_best_bid is None
+            or trade.arrival_best_ask is None
+            or trade.arrival_mid_price is None
+            or trade.arrival_spread is None
+        ):
+            continue
+
+        mid_price = trade.arrival_mid_price
+
+        if mid_price <= 0:
+            continue
+
+        if trade.aggressor == "BUY":
+            execution_cost = trade.price - mid_price
+        elif trade.aggressor == "SELL":
+            execution_cost = mid_price - trade.price
+        else:
+            continue
+
+        execution_cost_bps = (
+            execution_cost / mid_price
+        ) * 10_000
+
+        key = (
+            round(trade.arrival_spread, 8),
+            trade.aggressor,
+        )
+
+        spread_distribution[key]["trade_count"] += 1
+        spread_distribution[key]["total_quantity"] += trade.quantity
+
+        spread_distribution[key]["total_cost_bps"] += (
+            execution_cost_bps
+        )
+
+        spread_distribution[key]["quantity_weighted_cost_bps"] += (
+            execution_cost_bps * trade.quantity
+        )
+
 
     # Execution cost analysis
     analyzer = ExecutionCostAnalyzer(trade_tape)
@@ -180,6 +231,7 @@ def run_experiment(policy, seed):
         "missing_quantity_rate": missing_quantity_rate,
         "valid_buy_rate": valid_buy_rate,
         "valid_sell_rate": valid_sell_rate,
+        "spread_distribution": dict(spread_distribution),
     }
 
 
@@ -468,7 +520,247 @@ def print_coverage_summary(results):
 
 
 
+
+def print_spread_distribution(all_results):
+    print("\n" + "=" * 130)
+    print("SPREAD-CONDITIONED EXECUTION COST")
+    print("=" * 130)
+
+    for policy, results in all_results.items():
+        combined = defaultdict(
+            lambda: {
+                "trade_count": 0,
+                "total_quantity": 0,
+                "total_cost_bps": 0.0,
+                "quantity_weighted_cost_bps": 0.0,
+            }
+        )
+
+        # Combine results across all seeds
+        for result in results:
+            for (spread, aggressor), metrics in result[
+                "spread_distribution"
+            ].items():
+                target = combined[(spread, aggressor)]
+
+                target["trade_count"] += metrics["trade_count"]
+                target["total_quantity"] += metrics["total_quantity"]
+
+                target["total_cost_bps"] += metrics["total_cost_bps"]
+
+                target["quantity_weighted_cost_bps"] += (
+                    metrics["quantity_weighted_cost_bps"]
+                )
+
+        print(f"\nPOLICY: {policy.upper()}")
+        print("-" * 130)
+
+        print(
+            f"{'Spread':>12} "
+            f"{'Aggressor':>12} "
+            f"{'Trades':>10} "
+            f"{'Quantity':>12} "
+            f"{'Avg Cost (bps)':>18} "
+            f"{'Qty-Weighted (bps)':>22}"
+        )
+
+        for (spread, aggressor), metrics in sorted(combined.items()):
+            trade_count = metrics["trade_count"]
+            total_quantity = metrics["total_quantity"]
+
+            avg_cost_bps = (
+                metrics["total_cost_bps"] / trade_count
+                if trade_count > 0
+                else 0.0
+            )
+
+            qty_weighted_cost_bps = (
+                metrics["quantity_weighted_cost_bps"] / total_quantity
+                if total_quantity > 0
+                else 0.0
+            )
+
+            print(
+                f"{spread:>12.4f} "
+                f"{aggressor:>12} "
+                f"{trade_count:>10} "
+                f"{total_quantity:>12} "
+                f"{avg_cost_bps:>18.4f} "
+                f"{qty_weighted_cost_bps:>22.4f}"
+            )
+
+
+def print_standardized_spread_cost(all_results):
+    min_spread = 0.01
+    max_spread = 0.18
+
+    # Aggregate spread-conditioned metrics across seeds
+    combined = {}
+
+    for policy, results in all_results.items():
+        policy_data = defaultdict(
+            lambda: {
+                "trade_count": 0,
+                "total_quantity": 0,
+                "total_cost_bps": 0.0,
+                "quantity_weighted_cost_bps": 0.0,
+            }
+        )
+
+        for result in results:
+            for (spread, aggressor), metrics in result[
+                "spread_distribution"
+            ].items():
+                if not min_spread <= spread <= max_spread:
+                    continue
+
+                target = policy_data[(spread, aggressor)]
+
+                target["trade_count"] += metrics["trade_count"]
+                target["total_quantity"] += metrics["total_quantity"]
+                target["total_cost_bps"] += metrics["total_cost_bps"]
+                target["quantity_weighted_cost_bps"] += (
+                    metrics["quantity_weighted_cost_bps"]
+                )
+
+        combined[policy] = dict(policy_data)
+
+    # Identify keys available in every policy
+    common_keys = set.intersection(
+        *[set(data.keys()) for data in combined.values()]
+    )
+
+    if not common_keys:
+        raise ValueError("No common spread support found.")
+
+    # Build common weights from pooled observations
+    pooled_trades = {
+        key: sum(
+            combined[policy][key]["trade_count"]
+            for policy in combined
+        )
+        for key in common_keys
+    }
+
+    pooled_quantity = {
+        key: sum(
+            combined[policy][key]["total_quantity"]
+            for policy in combined
+        )
+        for key in common_keys
+    }
+
+    total_pooled_trades = sum(pooled_trades.values())
+    total_pooled_quantity = sum(pooled_quantity.values())
+
+    trade_weights = {
+        key: count / total_pooled_trades
+        for key, count in pooled_trades.items()
+    }
+
+    quantity_weights = {
+        key: quantity / total_pooled_quantity
+        for key, quantity in pooled_quantity.items()
+    }
+
+    print("\n" + "=" * 110)
+    print("STANDARDIZED EXECUTION COST")
+    print("=" * 110)
+
+    print(f"Common support: {min_spread:.2f} - {max_spread:.2f}")
+    print(f"Common spread/aggressor cells: {len(common_keys)}")
+    print(f"Pooled trades: {total_pooled_trades}")
+    print(f"Pooled quantity: {total_pooled_quantity}")
+
+    print("\n")
+    print(
+        f"{'Policy':<12}"
+        f"{'Avg Cost (bps)':>20}"
+        f"{'Qty-Weighted (bps)':>25}"
+    )
+    print("-" * 60)
+
+    standardized_results = {}
+
+    for policy, data in combined.items():
+        standardized_avg = 0.0
+        standardized_qty = 0.0
+
+        for key in common_keys:
+            metrics = data[key]
+
+            trade_count = metrics["trade_count"]
+            total_quantity = metrics["total_quantity"]
+
+            if trade_count <= 0 or total_quantity <= 0:
+                raise ValueError(
+                    f"Invalid observations for {policy}, {key}"
+                )
+
+            cell_avg_cost = (
+                metrics["total_cost_bps"] / trade_count
+            )
+
+            cell_qty_cost = (
+                metrics["quantity_weighted_cost_bps"]
+                / total_quantity
+            )
+
+            standardized_avg += (
+                trade_weights[key] * cell_avg_cost
+            )
+
+            standardized_qty += (
+                quantity_weights[key] * cell_qty_cost
+            )
+
+        standardized_results[policy] = {
+            "average_cost_bps": standardized_avg,
+            "quantity_weighted_cost_bps": standardized_qty,
+        }
+
+        print(
+            f"{policy:<12}"
+            f"{standardized_avg:>20.4f}"
+            f"{standardized_qty:>25.4f}"
+        )
+
+    # Compare against NONE
+    baseline = standardized_results["none"]
+
+    print("\nREDUCTION COMPARED WITH NONE")
+    print("-" * 60)
+
+    for policy, metrics in standardized_results.items():
+        if policy == "none":
+            continue
+
+        avg_reduction = (
+            (baseline["average_cost_bps"] - metrics["average_cost_bps"])
+            / baseline["average_cost_bps"]
+        ) * 100
+
+        qty_reduction = (
+            (
+                baseline["quantity_weighted_cost_bps"]
+                - metrics["quantity_weighted_cost_bps"]
+            )
+            / baseline["quantity_weighted_cost_bps"]
+        ) * 100
+
+        print(
+            f"{policy.upper():<12}"
+            f"Average: {avg_reduction:>8.2f}%"
+            f" | Quantity-weighted: {qty_reduction:>8.2f}%"
+        )
+
+    return standardized_results
+
+
 def main():
+
+    all_results = {}
+
     for policy in POLICIES:
         print("\n" + "#" * 95)
         print(f"EXECUTION COST EXPERIMENT: {policy.upper()}")
@@ -532,6 +824,8 @@ def main():
                 f"Missing rate: {missing_quantity_rate:.2%} | "
                 f"Total qty: {experiment['total_trade_quantity']}"
             )
+
+        all_results[policy] = policy_results
 
         print("\n" + "=" * 95)
         print(f"EXECUTION COST SUMMARY: {policy.upper()}")
@@ -634,8 +928,10 @@ def main():
         print(f"Analyzed trades:  {total_analyzed}")
         print(f"Skipped trades:   {total_skipped}")
 
+    print_spread_distribution(all_results)
+    print_standardized_spread_cost(all_results)
     print("\n" + "#" * 95)
-    print("PHASE 20.10: EXECUTION COST EXPERIMENT COMPLETE")
+    print("PHASE 20.12: SPREAD-CONDITIONED EXECUTION COST ANALYSIS COMPLETE")
     print("#" * 95)
 
 
