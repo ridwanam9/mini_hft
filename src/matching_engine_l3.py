@@ -49,6 +49,28 @@ class MatchingEngineL3:
         arrival_best_bid = self.book.best_bid
         arrival_best_ask = self.book.best_ask
 
+        # Capture top-5 order book depth.
+        arrival_bids, arrival_asks = self.book.get_depth(levels=5)
+
+        arrival_bid_depth = sum(
+            quantity for price, quantity in arrival_bids
+        )
+
+        arrival_ask_depth = sum(
+            quantity for price, quantity in arrival_asks
+        )
+
+        # Calculate arrival Order Book Imbalance.
+        total_depth = arrival_bid_depth + arrival_ask_depth
+
+        arrival_obi = None
+
+        if total_depth > 0:
+            arrival_obi = (
+                arrival_bid_depth - arrival_ask_depth
+            ) / total_depth
+
+
         arrival_mid_price = None
         arrival_spread = None
 
@@ -125,6 +147,9 @@ class MatchingEngineL3:
                     arrival_best_bid=arrival_best_bid,
                     arrival_best_ask=arrival_best_ask,
                     arrival_spread=arrival_spread,
+                    arrival_bid_depth=arrival_bid_depth,
+                    arrival_ask_depth=arrival_ask_depth,
+                    arrival_obi=arrival_obi,
                 )
             )
 
