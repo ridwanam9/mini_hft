@@ -92,6 +92,8 @@ def run_experiment(policy, seed):
             and trade.arrival_obi is not None
         ):
             arrival_state_observations.append({
+                "policy": policy,
+                "seed": seed,
                 "spread": trade.arrival_spread,
                 "bid_depth": trade.arrival_bid_depth,
                 "ask_depth": trade.arrival_ask_depth,
