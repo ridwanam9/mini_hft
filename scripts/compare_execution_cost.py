@@ -33,7 +33,33 @@ def run_experiment(policy, seed):
         }
     )
 
+    arrival_state_samples = {
+        "spread": [],
+        "bid_depth": [],
+        "ask_depth": [],
+        "obi": [],
+    }
+
     for trade in trade_tape:
+        if (
+            trade.arrival_spread is not None
+            and trade.arrival_bid_depth is not None
+            and trade.arrival_ask_depth is not None
+            and trade.arrival_obi is not None
+        ):
+            arrival_state_samples["spread"].append(
+                trade.arrival_spread
+            )
+            arrival_state_samples["bid_depth"].append(
+                trade.arrival_bid_depth
+            )
+            arrival_state_samples["ask_depth"].append(
+                trade.arrival_ask_depth
+            )
+            arrival_state_samples["obi"].append(
+                trade.arrival_obi
+            )
+
         if (
             trade.arrival_best_bid is None
             or trade.arrival_best_ask is None
@@ -222,6 +248,7 @@ def run_experiment(policy, seed):
         "missing_sell": missing_sell,
         "valid_buy": valid_buy,
         "valid_sell": valid_sell,
+        "arrival_state_samples": arrival_state_samples,
         "valid_quantity": valid_quantity,
         "missing_quantity": missing_quantity,
         "total_trade_quantity": total_trade_quantity,
@@ -757,9 +784,44 @@ def print_standardized_spread_cost(all_results):
     return standardized_results
 
 
+def print_arrival_state_distribution(samples):
+    print("\n" + "=" * 95)
+    print("POOLED ARRIVAL STATE DISTRIBUTION")
+    print("=" * 95)
+
+    for name, values in samples.items():
+        if not values:
+            print(f"\n{name.upper()}: No data")
+            continue
+
+        sorted_values = sorted(values)
+
+        def percentile(data, p):
+            index = round((len(data) - 1) * p)
+            return data[index]
+
+        print(f"\n{name.upper()}")
+        print("-" * 75)
+        print(f"Samples : {len(sorted_values)}")
+        print(f"Min     : {min(sorted_values):.4f}")
+        print(f"P10     : {percentile(sorted_values, 0.10):.4f}")
+        print(f"P25     : {percentile(sorted_values, 0.25):.4f}")
+        print(f"Median  : {percentile(sorted_values, 0.50):.4f}")
+        print(f"P75     : {percentile(sorted_values, 0.75):.4f}")
+        print(f"P90     : {percentile(sorted_values, 0.90):.4f}")
+        print(f"Max     : {max(sorted_values):.4f}")
+
+
 def main():
 
     all_results = {}
+
+    pooled_arrival_samples = {
+        "spread": [],
+        "bid_depth": [],
+        "ask_depth": [],
+        "obi": [],
+    }
 
     for policy in POLICIES:
         print("\n" + "#" * 95)
@@ -771,6 +833,13 @@ def main():
         for seed in SEEDS:
             experiment = run_experiment(policy, seed)
             policy_results.append(experiment)
+
+            samples = experiment["arrival_state_samples"]
+
+            for key in pooled_arrival_samples:
+                pooled_arrival_samples[key].extend(
+                    samples[key]
+                )
 
             result = experiment["result"]
             state_result = experiment["state_result"]
@@ -930,6 +999,11 @@ def main():
 
     print_spread_distribution(all_results)
     print_standardized_spread_cost(all_results)
+
+    print_arrival_state_distribution(
+        pooled_arrival_samples
+    )
+
     print("\n" + "#" * 95)
     print("PHASE 20.12: SPREAD-CONDITIONED EXECUTION COST ANALYSIS COMPLETE")
     print("#" * 95)
