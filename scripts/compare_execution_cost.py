@@ -1024,6 +1024,26 @@ def main():
     print_spread_distribution(all_results)
     print_standardized_spread_cost(all_results)
 
+    total_observations = len(pooled_arrival_observations)
+
+    total_analyzed = sum(
+        experiment["analyzed_trade_count"]
+        for policy_results in all_results.values()
+        for experiment in policy_results
+    )
+
+    print("\nARRIVAL STATE OBSERVATION VALIDATION")
+    print("-" * 75)
+    print(f"Collected observations: {total_observations}")
+    print(f"Expected observations:  {total_analyzed}")
+
+    if total_observations != total_analyzed:
+        raise AssertionError(
+            "Arrival state observation count mismatch"
+        )
+
+    print("Validation: PASSED")
+
     print_arrival_state_distribution(
         pooled_arrival_samples
     )
