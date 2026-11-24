@@ -40,6 +40,8 @@ def run_experiment(policy, seed):
         "obi": [],
     }
 
+    arrival_state_observations = []
+
     for trade in trade_tape:
         if (
             trade.arrival_spread is not None
@@ -83,6 +85,21 @@ def run_experiment(policy, seed):
         execution_cost_bps = (
             execution_cost / mid_price
         ) * 10_000
+
+        if (
+            trade.arrival_bid_depth is not None
+            and trade.arrival_ask_depth is not None
+            and trade.arrival_obi is not None
+        ):
+            arrival_state_observations.append({
+                "spread": trade.arrival_spread,
+                "bid_depth": trade.arrival_bid_depth,
+                "ask_depth": trade.arrival_ask_depth,
+                "obi": trade.arrival_obi,
+                "aggressor": trade.aggressor,
+                "execution_cost_bps": execution_cost_bps,
+                "quantity": trade.quantity,
+            })
 
         key = (
             round(trade.arrival_spread, 8),
@@ -259,6 +276,7 @@ def run_experiment(policy, seed):
         "valid_buy_rate": valid_buy_rate,
         "valid_sell_rate": valid_sell_rate,
         "spread_distribution": dict(spread_distribution),
+        "arrival_state_observations": arrival_state_observations,
     }
 
 
@@ -816,6 +834,8 @@ def main():
 
     all_results = {}
 
+    pooled_arrival_observations = []
+
     pooled_arrival_samples = {
         "spread": [],
         "bid_depth": [],
@@ -833,6 +853,10 @@ def main():
         for seed in SEEDS:
             experiment = run_experiment(policy, seed)
             policy_results.append(experiment)
+
+            pooled_arrival_observations.extend(
+                experiment["arrival_state_observations"]
+            )
 
             samples = experiment["arrival_state_samples"]
 
