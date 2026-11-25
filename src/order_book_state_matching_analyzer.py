@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 class OrderBookStateMatchingAnalyzer:
     """
     Groups execution observations by their arrival order book state.
@@ -67,3 +69,89 @@ class OrderBookStateMatchingAnalyzer:
             obi_bin,
             aggressor,
         )
+
+    
+    @classmethod
+    def analyze(cls, observations):
+        """
+        Aggregate execution cost by order book state and policy.
+        """
+
+        grouped = defaultdict(
+            lambda: {
+                policy: {
+                    "trade_count": 0,
+                    "total_quantity": 0,
+                    "total_cost_bps": 0.0,
+                    "quantity_weighted_cost_bps": 0.0,
+                }
+                for policy in cls.POLICIES
+            }
+        )
+
+        excluded_count = 0
+
+        for observation in observations:
+            policy = observation["policy"]
+
+            if policy not in cls.POLICIES:
+                raise ValueError(
+                    f"Invalid policy: {policy}"
+                )
+
+            state = cls.classify_observation(observation)
+
+            if state is None:
+                excluded_count += 1
+                continue
+
+            metrics = grouped[state][policy]
+
+            quantity = observation["quantity"]
+            cost_bps = observation["execution_cost_bps"]
+
+            metrics["trade_count"] += 1
+            metrics["total_quantity"] += quantity
+            metrics["total_cost_bps"] += cost_bps
+            metrics["quantity_weighted_cost_bps"] += (
+                cost_bps * quantity
+            )
+
+        # Calculate average metrics for each state and policy.
+        results = {}
+
+        for state, policies in grouped.items():
+            results[state] = {}
+
+            for policy, metrics in policies.items():
+                trade_count = metrics["trade_count"]
+                total_quantity = metrics["total_quantity"]
+
+                average_cost_bps = (
+                    metrics["total_cost_bps"] / trade_count
+                    if trade_count > 0
+                    else None
+                )
+
+                quantity_weighted_cost_bps = (
+                    metrics["quantity_weighted_cost_bps"]
+                    / total_quantity
+                    if total_quantity > 0
+                    else None
+                )
+
+                results[state][policy] = {
+                    "trade_count": trade_count,
+                    "total_quantity": total_quantity,
+                    "average_cost_bps": average_cost_bps,
+                    "quantity_weighted_cost_bps": (
+                        quantity_weighted_cost_bps
+                    ),
+                }
+
+        return {
+            "groups": results,
+            "excluded_count": excluded_count,
+            "total_observations": len(observations),
+        }
+

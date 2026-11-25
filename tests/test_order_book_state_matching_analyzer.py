@@ -98,3 +98,91 @@ def test_invalid_aggressor_is_rejected():
         pass
     else:
         raise AssertionError("Expected ValueError")
+
+
+
+def test_analyze_groups_observations_by_policy():
+    observations = [
+        {
+            "policy": "none",
+            "spread": 0.05,
+            "bid_depth": 250,
+            "ask_depth": 500,
+            "obi": -0.6,
+            "aggressor": "BUY",
+            "execution_cost_bps": 4.0,
+            "quantity": 100,
+        },
+        {
+            "policy": "random",
+            "spread": 0.05,
+            "bid_depth": 250,
+            "ask_depth": 500,
+            "obi": -0.6,
+            "aggressor": "BUY",
+            "execution_cost_bps": 3.0,
+            "quantity": 200,
+        },
+        {
+            "policy": "distance",
+            "spread": 0.05,
+            "bid_depth": 250,
+            "ask_depth": 500,
+            "obi": -0.6,
+            "aggressor": "BUY",
+            "execution_cost_bps": 2.0,
+            "quantity": 300,
+        },
+    ]
+
+    result = OrderBookStateMatchingAnalyzer.analyze(
+        observations
+    )
+
+    state = (
+        "MEDIUM",
+        "MEDIUM",
+        "HIGH",
+        "NEGATIVE",
+        "BUY",
+    )
+
+    group = result["groups"][state]
+
+    assert group["none"]["trade_count"] == 1
+    assert group["random"]["trade_count"] == 1
+    assert group["distance"]["trade_count"] == 1
+
+    assert group["none"]["average_cost_bps"] == 4.0
+    assert group["random"]["average_cost_bps"] == 3.0
+    assert group["distance"]["average_cost_bps"] == 2.0
+
+    assert group["none"]["total_quantity"] == 100
+    assert group["random"]["total_quantity"] == 200
+    assert group["distance"]["total_quantity"] == 300
+
+    assert result["excluded_count"] == 0
+    assert result["total_observations"] == 3
+
+
+def test_analyze_excludes_out_of_support_observations():
+    observations = [
+        {
+            "policy": "none",
+            "spread": 0.20,
+            "bid_depth": 250,
+            "ask_depth": 500,
+            "obi": 0.0,
+            "aggressor": "BUY",
+            "execution_cost_bps": 3.0,
+            "quantity": 100,
+        }
+    ]
+
+    result = OrderBookStateMatchingAnalyzer.analyze(
+        observations
+    )
+
+    assert result["groups"] == {}
+    assert result["excluded_count"] == 1
+    assert result["total_observations"] == 1
