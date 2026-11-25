@@ -173,3 +173,26 @@ class OrderBookStateMatchingAnalyzer:
                 common_states.append(state)
 
         return common_states
+
+    @classmethod
+    def compare_common_states(cls, analysis_result):
+        """
+        Compare execution costs across policies
+        using only common order book states.
+        """
+        common_states = cls.find_common_states(analysis_result)
+
+        comparisons = []
+
+        for state in common_states:
+            policies = analysis_result["groups"][state]
+
+            comparisons.append({
+                "state": state,
+                "policies": {
+                    policy: policies[policy]
+                    for policy in cls.POLICIES
+                },
+            })
+
+        return comparisons

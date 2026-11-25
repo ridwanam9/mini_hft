@@ -239,3 +239,37 @@ def test_find_common_states():
 
     assert common_states == [expected_state]
 
+
+
+def test_compare_common_states():
+    observations = []
+
+    for policy, cost in [
+        ("none", 3.5),
+        ("random", 3.0),
+        ("distance", 2.5),
+    ]:
+        observations.append({
+            "policy": policy,
+            "spread": 0.05,
+            "bid_depth": 250,
+            "ask_depth": 500,
+            "obi": -0.6,
+            "aggressor": "BUY",
+            "execution_cost_bps": cost,
+            "quantity": 100,
+        })
+
+    result = OrderBookStateMatchingAnalyzer.analyze(observations)
+
+    comparisons = (
+        OrderBookStateMatchingAnalyzer.compare_common_states(result)
+    )
+
+    assert len(comparisons) == 1
+
+    comparison = comparisons[0]
+
+    assert comparison["policies"]["none"]["average_cost_bps"] == 3.5
+    assert comparison["policies"]["random"]["average_cost_bps"] == 3.0
+    assert comparison["policies"]["distance"]["average_cost_bps"] == 2.5
