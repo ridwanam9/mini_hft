@@ -198,12 +198,25 @@ class OrderBookStateMatchingAnalyzer:
         return comparisons
 
     @classmethod
-    def calculate_standardized_cost(cls, analysis_result):
+    def calculate_standardized_cost(
+        cls,
+        analysis_result,
+        selected_states=None,
+    ):
         """
         Calculate standardized execution cost using
         pooled weights across common order book states.
         """
-        comparisons = cls.compare_common_states(analysis_result)
+        if selected_states is None:
+            comparisons = cls.compare_common_states(analysis_result)
+        else:
+            comparisons = [
+                {
+                    "state": state,
+                    "policies": analysis_result["groups"][state],
+                }
+                for state in selected_states
+            ]
 
         standardized = {
             policy: {

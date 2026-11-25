@@ -1066,6 +1066,47 @@ def main():
     )
 
     print("\n" + "=" * 95)
+    print("PHASE 20.13: MINIMUM SAMPLE THRESHOLD ANALYSIS")
+    print("=" * 95)
+
+    thresholds = [10, 30, 50]
+
+    for threshold in thresholds:
+        selected_states = (
+            OrderBookStateMatchingAnalyzer
+            .filter_common_states_by_minimum_samples(
+                state_matching_result,
+                min_samples=threshold,
+            )
+        )
+
+        result = (
+            OrderBookStateMatchingAnalyzer.calculate_standardized_cost(
+                state_matching_result,
+                selected_states=selected_states,
+            )
+        )
+
+        print(f"\nMINIMUM SAMPLE THRESHOLD: {threshold}")
+        print("-" * 75)
+
+        print(f"Selected states: {len(selected_states)}")
+
+        if result["policies"] is None:
+            print("Insufficient data for comparison.")
+            continue
+
+        for policy, metrics in result["policies"].items():
+            print(
+                f"{policy.upper():<12} | "
+                f"Trades: {metrics['trade_count']:>7} | "
+                f"Quantity: {metrics['total_quantity']:>9} | "
+                f"Avg Cost: {metrics['average_cost_bps']:>8.4f} bps | "
+                f"Qty-Weighted: "
+                f"{metrics['quantity_weighted_cost_bps']:>8.4f} bps"
+            )
+
+    print("\n" + "=" * 95)
     print("PHASE 20.13: ORDER BOOK STATE MATCHING")
     print("=" * 95)
 
