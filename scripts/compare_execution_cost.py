@@ -1082,6 +1082,25 @@ def main():
         f"{'Qty-Weighted (bps)':>22}"
     )
 
+
+    sample_summary = (
+        OrderBookStateMatchingAnalyzer.summarize_common_state_samples(
+            state_matching_result
+        )
+    )
+
+    print("\nCOMMON STATE SAMPLE DISTRIBUTION")
+    print("-" * 75)
+
+    for policy, metrics in sample_summary.items():
+        print(
+            f"{policy.upper():<12} | "
+            f"States: {metrics['state_count']:>4} | "
+            f"Min: {metrics['minimum']:>5} | "
+            f"Median: {metrics['median']:>5} | "
+            f"Max: {metrics['maximum']:>5}"
+        )
+
     print("-" * 84)
 
     for policy, metrics in standardized_result["policies"].items():

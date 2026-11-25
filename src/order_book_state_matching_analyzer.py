@@ -269,3 +269,33 @@ class OrderBookStateMatchingAnalyzer:
             "common_state_count": len(comparisons),
             "policies": standardized,
         }
+
+    @classmethod
+    def summarize_common_state_samples(cls, analysis_result):
+        """
+        Summarize trade counts across common states.
+        """
+        common_states = cls.find_common_states(analysis_result)
+
+        summary = {}
+
+        for policy in cls.POLICIES:
+            counts = [
+                analysis_result["groups"][state][policy]["trade_count"]
+                for state in common_states
+            ]
+
+            if not counts:
+                summary[policy] = None
+                continue
+
+            sorted_counts = sorted(counts)
+
+            summary[policy] = {
+                "state_count": len(counts),
+                "minimum": sorted_counts[0],
+                "median": sorted_counts[len(counts) // 2],
+                "maximum": sorted_counts[-1],
+            }
+
+        return summary
