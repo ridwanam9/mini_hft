@@ -5,6 +5,9 @@ from src.execution_cost_analyzer import ExecutionCostAnalyzer
 from src.order_book_state_analyzer import OrderBookStateAnalyzer
 from src.spread_cost_analyzer import SpreadCostAnalyzer
 from collections import defaultdict
+from src.order_book_state_matching_analyzer import (
+    OrderBookStateMatchingAnalyzer,
+)
 
 NUM_SUBMISSIONS = 10_000
 SEEDS = [42, 123, 456, 789, 2026]
@@ -1049,6 +1052,46 @@ def main():
     print_arrival_state_distribution(
         pooled_arrival_samples
     )
+
+    state_matching_result = (
+        OrderBookStateMatchingAnalyzer.analyze(
+            pooled_arrival_observations
+        )
+    )
+
+    standardized_result = (
+        OrderBookStateMatchingAnalyzer.calculate_standardized_cost(
+            state_matching_result
+        )
+    )
+
+    print("\n" + "=" * 95)
+    print("PHASE 20.13: ORDER BOOK STATE MATCHING")
+    print("=" * 95)
+
+    print(
+        f"Common states: "
+        f"{standardized_result['common_state_count']}"
+    )
+
+    print(
+        f"{'Policy':<15}"
+        f"{'Trades':>12}"
+        f"{'Quantity':>15}"
+        f"{'Avg Cost (bps)':>20}"
+        f"{'Qty-Weighted (bps)':>22}"
+    )
+
+    print("-" * 84)
+
+    for policy, metrics in standardized_result["policies"].items():
+        print(
+            f"{policy.upper():<15}"
+            f"{metrics['trade_count']:>12}"
+            f"{metrics['total_quantity']:>15}"
+            f"{metrics['average_cost_bps']:>20.4f}"
+            f"{metrics['quantity_weighted_cost_bps']:>22.4f}"
+        )
 
     print("\n" + "#" * 95)
     print("PHASE 20.12: SPREAD-CONDITIONED EXECUTION COST ANALYSIS COMPLETE")
