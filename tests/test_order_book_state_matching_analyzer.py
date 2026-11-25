@@ -345,4 +345,64 @@ def test_calculate_standardized_cost():
     assert policies["distance"]["quantity_weighted_cost_bps"] == pytest.approx(
         1.6666666666666667
     )
-    
+
+
+def test_filter_common_states_by_minimum_samples():
+    observations = []
+
+    # State A: semua kebijakan memiliki minimal 30 transaksi.
+    for policy in ["none", "random", "distance"]:
+        for _ in range(50):
+            observations.append({
+                "policy": policy,
+                "spread": 0.05,
+                "bid_depth": 250,
+                "ask_depth": 500,
+                "obi": -0.6,
+                "aggressor": "BUY",
+                "execution_cost_bps": 3.0,
+                "quantity": 100,
+            })
+
+    # State B: DISTANCE hanya memiliki 20 transaksi.
+    for policy, count in [
+        ("none", 50),
+        ("random", 40),
+        ("distance", 20),
+    ]:
+        for _ in range(count):
+            observations.append({
+                "policy": policy,
+                "spread": 0.02,
+                "bid_depth": 50,
+                "ask_depth": 80,
+                "obi": 0.0,
+                "aggressor": "SELL",
+                "execution_cost_bps": 2.0,
+                "quantity": 100,
+            })
+
+    result = OrderBookStateMatchingAnalyzer.analyze(observations)
+
+    filtered = (
+        OrderBookStateMatchingAnalyzer
+        .filter_common_states_by_minimum_samples(
+            result,
+            min_samples=30,
+        )
+    )
+
+    expected_state = (
+        "MEDIUM", "MEDIUM", "HIGH", "NEGATIVE", "BUY",
+    )
+
+    assert filtered == [expected_state]
+
+def test_filter_common_states_rejects_invalid_threshold():
+    import pytest
+
+    with pytest.raises(ValueError):
+        OrderBookStateMatchingAnalyzer.filter_common_states_by_minimum_samples(
+            {"groups": {}},
+            min_samples=0,
+        )

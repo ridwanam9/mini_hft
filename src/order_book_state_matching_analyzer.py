@@ -299,3 +299,32 @@ class OrderBookStateMatchingAnalyzer:
             }
 
         return summary
+
+
+    @classmethod
+    def filter_common_states_by_minimum_samples(
+        cls,
+        analysis_result,
+        min_samples,
+    ):
+        """
+        Keep only common states where every policy
+        has at least min_samples observations.
+        """
+        if min_samples < 1:
+            raise ValueError("min_samples must be >= 1")
+
+        common_states = cls.find_common_states(analysis_result)
+
+        filtered_states = []
+
+        for state in common_states:
+            policies = analysis_result["groups"][state]
+
+            if all(
+                policies[policy]["trade_count"] >= min_samples
+                for policy in cls.POLICIES
+            ):
+                filtered_states.append(state)
+
+        return filtered_states
