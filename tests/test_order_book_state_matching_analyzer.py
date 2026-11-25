@@ -1,3 +1,4 @@
+import pytest
 
 from src.order_book_state_matching_analyzer import (
     OrderBookStateMatchingAnalyzer,
@@ -273,3 +274,75 @@ def test_compare_common_states():
     assert comparison["policies"]["none"]["average_cost_bps"] == 3.5
     assert comparison["policies"]["random"]["average_cost_bps"] == 3.0
     assert comparison["policies"]["distance"]["average_cost_bps"] == 2.5
+
+def test_calculate_standardized_cost():
+    observations = []
+
+    # State A: spread MEDIUM, depth MEDIUM/HIGH.
+    state_a = [
+        ("none", 3.0, 100),
+        ("random", 2.0, 200),
+        ("distance", 1.0, 300),
+    ]
+
+    # State B: spread LOW, depth LOW.
+    state_b = [
+        ("none", 5.0, 100),
+        ("random", 4.0, 100),
+        ("distance", 3.0, 100),
+    ]
+
+    for policy, cost, quantity in state_a:
+        observations.append({
+            "policy": policy,
+            "spread": 0.05,
+            "bid_depth": 250,
+            "ask_depth": 500,
+            "obi": -0.6,
+            "aggressor": "BUY",
+            "execution_cost_bps": cost,
+            "quantity": quantity,
+        })
+
+    for policy, cost, quantity in state_b:
+        observations.append({
+            "policy": policy,
+            "spread": 0.02,
+            "bid_depth": 50,
+            "ask_depth": 80,
+            "obi": 0.0,
+            "aggressor": "SELL",
+            "execution_cost_bps": cost,
+            "quantity": quantity,
+        })
+
+    analysis_result = OrderBookStateMatchingAnalyzer.analyze(observations)
+
+    result = (
+        OrderBookStateMatchingAnalyzer.calculate_standardized_cost(
+            analysis_result
+        )
+    )
+
+    assert result["common_state_count"] == 2
+
+    policies = result["policies"]
+
+    # Each state has equal trade weight: 50%.
+    assert policies["none"]["average_cost_bps"] == 4.0
+    assert policies["random"]["average_cost_bps"] == 3.0
+    assert policies["distance"]["average_cost_bps"] == 2.0
+
+    # Quantity weights:
+    # State A = 600 / 900
+    # State B = 300 / 900
+    assert policies["none"]["quantity_weighted_cost_bps"] == pytest.approx(
+    3.6666666666666665
+    )
+    assert policies["random"]["quantity_weighted_cost_bps"] == pytest.approx(
+        2.6666666666666665
+    )
+    assert policies["distance"]["quantity_weighted_cost_bps"] == pytest.approx(
+        1.6666666666666667
+    )
+    

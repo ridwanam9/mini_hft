@@ -196,3 +196,76 @@ class OrderBookStateMatchingAnalyzer:
             })
 
         return comparisons
+
+    @classmethod
+    def calculate_standardized_cost(cls, analysis_result):
+        """
+        Calculate standardized execution cost using
+        pooled weights across common order book states.
+        """
+        comparisons = cls.compare_common_states(analysis_result)
+
+        standardized = {
+            policy: {
+                "average_cost_bps": 0.0,
+                "quantity_weighted_cost_bps": 0.0,
+                "trade_count": 0,
+                "total_quantity": 0,
+            }
+            for policy in cls.POLICIES
+        }
+
+        total_trade_weight = 0
+        total_quantity_weight = 0
+
+        # Calculate pooled weights.
+        for comparison in comparisons:
+            policies = comparison["policies"]
+
+            for policy in cls.POLICIES:
+                metrics = policies[policy]
+
+                total_trade_weight += metrics["trade_count"]
+                total_quantity_weight += metrics["total_quantity"]
+
+        if total_trade_weight == 0 or total_quantity_weight == 0:
+            return {
+                "common_state_count": len(comparisons),
+                "policies": None,
+            }
+
+        # Calculate standardized costs.
+        for comparison in comparisons:
+            policies = comparison["policies"]
+
+            state_trade_count = sum(
+                policies[policy]["trade_count"]
+                for policy in cls.POLICIES
+            )
+
+            state_quantity = sum(
+                policies[policy]["total_quantity"]
+                for policy in cls.POLICIES
+            )
+
+            trade_weight = state_trade_count / total_trade_weight
+            quantity_weight = state_quantity / total_quantity_weight
+
+            for policy in cls.POLICIES:
+                metrics = policies[policy]
+
+                standardized[policy]["average_cost_bps"] += (
+                    metrics["average_cost_bps"] * trade_weight
+                )
+
+                standardized[policy]["quantity_weighted_cost_bps"] += (
+                    metrics["quantity_weighted_cost_bps"] * quantity_weight
+                )
+
+                standardized[policy]["trade_count"] += metrics["trade_count"]
+                standardized[policy]["total_quantity"] += metrics["total_quantity"]
+
+        return {
+            "common_state_count": len(comparisons),
+            "policies": standardized,
+        }
