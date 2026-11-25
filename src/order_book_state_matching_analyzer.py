@@ -154,4 +154,22 @@ class OrderBookStateMatchingAnalyzer:
             "excluded_count": excluded_count,
             "total_observations": len(observations),
         }
+    
+    @classmethod
+    def find_common_states(cls, analysis_result):
+        """
+        Find states with observations from every policy.
+        """
 
+        common_states = []
+
+        for state, policies in analysis_result["groups"].items():
+            has_all_policies = all(
+                policies[policy]["trade_count"] > 0
+                for policy in cls.POLICIES
+            )
+
+            if has_all_policies:
+                common_states.append(state)
+
+        return common_states
