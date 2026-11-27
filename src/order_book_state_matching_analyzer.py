@@ -422,3 +422,45 @@ class OrderBookStateMatchingAnalyzer:
             )
 
         return results
+
+    @classmethod
+    def calculate_paired_differences(
+        cls,
+        analysis_result,
+        selected_states,
+        baseline="none",
+        competitor="distance",
+    ):
+        comparison = cls.compare_policies_by_state(
+            analysis_result,
+            selected_states,
+            baseline,
+            competitor,
+        )
+
+        metrics = [
+            "average_cost_bps",
+            "quantity_weighted_cost_bps",
+        ]
+
+        results = {}
+
+        for metric in metrics:
+            deltas = [
+                item["delta"]
+                for item in comparison[metric]["comparisons"]
+            ]
+
+            if not deltas:
+                results[metric] = None
+                continue
+
+            results[metric] = {
+                "count": len(deltas),
+                "mean": sum(deltas) / len(deltas),
+                "minimum": min(deltas),
+                "maximum": max(deltas),
+                "deltas": deltas,
+            }
+
+        return results
