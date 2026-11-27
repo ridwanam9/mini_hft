@@ -835,6 +835,18 @@ def print_arrival_state_distribution(samples):
         print(f"Max     : {max(sorted_values):.4f}")
 
 
+def print_paired_comparison(comparison, metric_name):
+    result = comparison[metric_name]
+
+    print(f"\n{metric_name}")
+    print("-" * 60)
+    print(f"Total states     : {result['total_states']}")
+    print(f"NONE wins        : {result['baseline_wins']}")
+    print(f"DISTANCE wins    : {result['competitor_wins']}")
+    print(f"Ties             : {result['ties']}")
+    print(f"NONE win rate    : {result['baseline_win_rate']:.2%}")
+    print(f"DISTANCE win rate: {result['competitor_win_rate']:.2%}")
+
 def main():
 
     all_results = {}
@@ -1069,6 +1081,41 @@ def main():
     print("PHASE 20.13: MINIMUM SAMPLE THRESHOLD ANALYSIS")
     print("=" * 95)
 
+
+    # Paired comparison: NONE vs DISTANCE
+    selected_states_30 = (
+        OrderBookStateMatchingAnalyzer
+        .filter_common_states_by_minimum_samples(
+            state_matching_result,
+            min_samples=30,
+        )
+    )
+
+    paired_comparison = (
+        OrderBookStateMatchingAnalyzer.compare_policies_by_state(
+            state_matching_result,
+            selected_states=selected_states_30,
+            baseline="none",
+            competitor="distance",
+        )
+    )
+
+    print("\n" + "=" * 95)
+    print("PHASE 20.13: PAIRED POLICY COMPARISON")
+    print("=" * 95)
+
+    print(f"Selected states: {len(selected_states_30)}")
+
+    print_paired_comparison(
+        paired_comparison,
+        "average_cost_bps",
+    )
+
+    print_paired_comparison(
+        paired_comparison,
+        "quantity_weighted_cost_bps",
+    )
+
     thresholds = [10, 30, 50]
 
     for threshold in thresholds:
@@ -1154,7 +1201,7 @@ def main():
         )
 
     print("\n" + "#" * 95)
-    print("PHASE 20.12: SPREAD-CONDITIONED EXECUTION COST ANALYSIS COMPLETE")
+    print("PHASE 20.13: ORDER BOOK STATE MATCHING ANALYSIS COMPLETE")
     print("#" * 95)
 
 

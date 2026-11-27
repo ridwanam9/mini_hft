@@ -341,3 +341,84 @@ class OrderBookStateMatchingAnalyzer:
                 filtered_states.append(state)
 
         return filtered_states
+    
+    @classmethod
+    def compare_policies_by_state(
+        cls,
+        analysis_result,
+        selected_states,
+        baseline="none",
+        competitor="distance",
+    ):
+        """
+        Compare two policies within identical order book states.
+        Negative delta means competitor has lower execution cost.
+        """
+
+        if baseline not in cls.POLICIES:
+            raise ValueError(f"Invalid baseline policy: {baseline}")
+
+        if competitor not in cls.POLICIES:
+            raise ValueError(f"Invalid competitor policy: {competitor}")
+
+        if baseline == competitor:
+            raise ValueError("Policies must be different")
+
+        metrics_to_compare = [
+            "average_cost_bps",
+            "quantity_weighted_cost_bps",
+        ]
+
+        results = {
+            metric: {
+                "baseline_wins": 0,
+                "competitor_wins": 0,
+                "ties": 0,
+                "comparisons": [],
+            }
+            for metric in metrics_to_compare
+        }
+
+        for state in selected_states:
+            policies = analysis_result["groups"][state]
+
+            for metric in metrics_to_compare:
+                baseline_cost = policies[baseline][metric]
+                competitor_cost = policies[competitor][metric]
+
+                delta = competitor_cost - baseline_cost
+
+                if delta < 0:
+                    winner = competitor
+                    results[metric]["competitor_wins"] += 1
+                elif delta > 0:
+                    winner = baseline
+                    results[metric]["baseline_wins"] += 1
+                else:
+                    winner = "TIE"
+                    results[metric]["ties"] += 1
+
+                results[metric]["comparisons"].append({
+                    "state": state,
+                    "baseline_cost": baseline_cost,
+                    "competitor_cost": competitor_cost,
+                    "delta": delta,
+                    "winner": winner,
+                })
+
+        for metric in metrics_to_compare:
+            total = len(results[metric]["comparisons"])
+
+            results[metric]["total_states"] = total
+
+            results[metric]["competitor_win_rate"] = (
+                results[metric]["competitor_wins"] / total
+                if total > 0 else 0
+            )
+
+            results[metric]["baseline_win_rate"] = (
+                results[metric]["baseline_wins"] / total
+                if total > 0 else 0
+            )
+
+        return results

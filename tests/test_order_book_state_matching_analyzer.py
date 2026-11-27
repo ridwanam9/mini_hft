@@ -406,3 +406,56 @@ def test_filter_common_states_rejects_invalid_threshold():
             {"groups": {}},
             min_samples=0,
         )
+
+def test_compare_policies_by_state():
+    observations = []
+
+    test_data = [
+        ("none", 3.0),
+        ("distance", 2.0),
+    ]
+
+    for policy, cost in test_data:
+        observations.append({
+            "policy": policy,
+            "spread": 0.05,
+            "bid_depth": 250,
+            "ask_depth": 500,
+            "obi": -0.6,
+            "aggressor": "BUY",
+            "execution_cost_bps": cost,
+            "quantity": 100,
+        })
+
+    # Add RANDOM so the state is common to all policies.
+    observations.append({
+        "policy": "random",
+        "spread": 0.05,
+        "bid_depth": 250,
+        "ask_depth": 500,
+        "obi": -0.6,
+        "aggressor": "BUY",
+        "execution_cost_bps": 2.5,
+        "quantity": 100,
+    })
+
+    result = OrderBookStateMatchingAnalyzer.analyze(observations)
+
+    state = OrderBookStateMatchingAnalyzer.find_common_states(result)
+
+    comparison = (
+        OrderBookStateMatchingAnalyzer.compare_policies_by_state(
+            result,
+            selected_states=state,
+            baseline="none",
+            competitor="distance",
+        )
+    )
+
+    avg = comparison["average_cost_bps"]
+
+    assert avg["total_states"] == 1
+    assert avg["competitor_wins"] == 1
+    assert avg["baseline_wins"] == 0
+    assert avg["ties"] == 0
+    assert avg["competitor_win_rate"] == 1.0
