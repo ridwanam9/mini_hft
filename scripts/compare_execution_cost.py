@@ -847,11 +847,56 @@ def print_paired_comparison(comparison, metric_name):
     print(f"NONE win rate    : {result['baseline_win_rate']:.2%}")
     print(f"DISTANCE win rate: {result['competitor_win_rate']:.2%}")
 
+
+def analyze_paired_comparison_by_seed(
+    arrival_observations_by_seed,
+    min_samples=30,
+):
+    results = {}
+
+    for seed, observations in arrival_observations_by_seed.items():
+
+        analysis_result = (
+            OrderBookStateMatchingAnalyzer.analyze(
+                observations
+            )
+        )
+
+        selected_states = (
+            OrderBookStateMatchingAnalyzer
+            .filter_common_states_by_minimum_samples(
+                analysis_result,
+                min_samples=min_samples,
+            )
+        )
+
+        comparison = (
+            OrderBookStateMatchingAnalyzer.compare_policies_by_state(
+                analysis_result,
+                selected_states=selected_states,
+                baseline="none",
+                competitor="distance",
+            )
+        )
+
+        results[seed] = {
+            "selected_state_count": len(selected_states),
+            "comparison": comparison,
+        }
+
+    return results
+
+
 def main():
 
     all_results = {}
 
     pooled_arrival_observations = []
+
+    arrival_observations_by_seed = {
+        seed: []
+        for seed in SEEDS
+    }
 
     pooled_arrival_samples = {
         "spread": [],
@@ -871,8 +916,16 @@ def main():
             experiment = run_experiment(policy, seed)
             policy_results.append(experiment)
 
+            seed_observations = experiment[
+                "arrival_state_observations"
+            ]
+
             pooled_arrival_observations.extend(
-                experiment["arrival_state_observations"]
+                seed_observations
+            )
+
+            arrival_observations_by_seed[seed].extend(
+                seed_observations
             )
 
             samples = experiment["arrival_state_samples"]
@@ -1115,6 +1168,36 @@ def main():
         paired_comparison,
         "quantity_weighted_cost_bps",
     )
+
+    # Phase 20.14: Per-seed robustness analysis
+    per_seed_results = analyze_paired_comparison_by_seed(
+        arrival_observations_by_seed,
+        min_samples=30,
+    )
+
+    print("\n" + "=" * 95)
+    print("PHASE 20.14: PER-SEED PAIRED COMPARISON")
+    print("=" * 95)
+
+    for seed, result in per_seed_results.items():
+        comparison = result["comparison"]
+
+        print(f"\nSEED: {seed}")
+        print("-" * 75)
+        print(
+            f"Selected states: "
+            f"{result['selected_state_count']}"
+        )
+
+        print_paired_comparison(
+            comparison,
+            "average_cost_bps",
+        )
+
+        print_paired_comparison(
+            comparison,
+            "quantity_weighted_cost_bps",
+        )
 
     thresholds = [10, 30, 50]
 
