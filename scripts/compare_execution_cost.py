@@ -1204,6 +1204,34 @@ def main():
         pooled_differences
     )
 
+    # Phase 20.14: Pooled Wilcoxon signed-rank test
+    wilcoxon_results = (
+        OrderBookStateMatchingAnalyzer.perform_wilcoxon_test(
+            state_matching_result,
+            selected_states_30,
+            baseline="none",
+            competitor="distance",
+        )
+    )
+
+    print("\n" + "=" * 95)
+    print("PHASE 20.14: POOLED WILCOXON SIGNED-RANK TEST")
+    print("=" * 95)
+
+    for metric, result in wilcoxon_results.items():
+        print(f"\n{metric}")
+        print("-" * 75)
+
+        if result is None:
+            print("Insufficient data.")
+            continue
+
+        print(f"Sample size : {result['sample_size']}")
+        print(f"Statistic   : {result['statistic']:.4f}")
+        print(f"P-value     : {result['p_value']:.4e}")
+        print(f"Significant : {result['significant']}")
+
+
     # Phase 20.14: Per-seed robustness analysis
     per_seed_results = analyze_paired_comparison_by_seed(
         arrival_observations_by_seed,
