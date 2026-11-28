@@ -1,4 +1,5 @@
 from collections import defaultdict
+import statistics
 
 class OrderBookStateMatchingAnalyzer:
     """
@@ -457,7 +458,13 @@ class OrderBookStateMatchingAnalyzer:
 
             results[metric] = {
                 "count": len(deltas),
-                "mean": sum(deltas) / len(deltas),
+                "mean": statistics.mean(deltas),
+                "median": statistics.median(deltas),
+                "std_dev": (
+                    statistics.stdev(deltas)
+                    if len(deltas) > 1
+                    else 0.0
+                ),
                 "minimum": min(deltas),
                 "maximum": max(deltas),
                 "deltas": deltas,
