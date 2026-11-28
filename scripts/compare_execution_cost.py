@@ -848,6 +848,23 @@ def print_paired_comparison(comparison, metric_name):
     print(f"DISTANCE win rate: {result['competitor_win_rate']:.2%}")
 
 
+def print_paired_difference_summary(results):
+    for metric, stats in results.items():
+        print(f"\n{metric}")
+        print("-" * 75)
+
+        if stats is None:
+            print("Insufficient data.")
+            continue
+
+        print(f"Number of states : {stats['count']}")
+        print(f"Mean delta       : {stats['mean']:.4f} bps")
+        print(f"Median delta     : {stats['median']:.4f} bps")
+        print(f"Std deviation    : {stats['std_dev']:.4f} bps")
+        print(f"Minimum delta    : {stats['minimum']:.4f} bps")
+        print(f"Maximum delta    : {stats['maximum']:.4f} bps")
+
+
 def analyze_paired_comparison_by_seed(
     arrival_observations_by_seed,
     min_samples=30,
@@ -1169,6 +1186,24 @@ def main():
         "quantity_weighted_cost_bps",
     )
 
+    # Phase 20.14: Pooled paired difference analysis
+    pooled_differences = (
+        OrderBookStateMatchingAnalyzer.calculate_paired_differences(
+            state_matching_result,
+            selected_states_30,
+            baseline="none",
+            competitor="distance",
+        )
+    )
+
+    print("\n" + "=" * 95)
+    print("PHASE 20.14: POOLED PAIRED DIFFERENCE ANALYSIS")
+    print("=" * 95)
+
+    print_paired_difference_summary(
+        pooled_differences
+    )
+
     # Phase 20.14: Per-seed robustness analysis
     per_seed_results = analyze_paired_comparison_by_seed(
         arrival_observations_by_seed,
@@ -1198,6 +1233,28 @@ def main():
             comparison,
             "quantity_weighted_cost_bps",
         )
+
+        differences = (
+            OrderBookStateMatchingAnalyzer.calculate_paired_differences(
+                OrderBookStateMatchingAnalyzer.analyze(
+                    arrival_observations_by_seed[seed]
+                ),
+                (
+                    OrderBookStateMatchingAnalyzer
+                    .filter_common_states_by_minimum_samples(
+                        OrderBookStateMatchingAnalyzer.analyze(
+                            arrival_observations_by_seed[seed]
+                        ),
+                        min_samples=30,
+                    )
+                ),
+                baseline="none",
+                competitor="distance",
+            )
+        )
+
+        print("\nPAIRED DIFFERENCE SUMMARY")
+        print_paired_difference_summary(differences)
 
     thresholds = [10, 30, 50]
 
