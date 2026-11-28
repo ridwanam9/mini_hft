@@ -1,5 +1,6 @@
 from collections import defaultdict
 import statistics
+from scipy.stats import wilcoxon
 
 class OrderBookStateMatchingAnalyzer:
     """
@@ -468,6 +469,60 @@ class OrderBookStateMatchingAnalyzer:
                 "minimum": min(deltas),
                 "maximum": max(deltas),
                 "deltas": deltas,
+            }
+
+        return results
+
+    @classmethod
+    def perform_wilcoxon_test(
+        cls,
+        analysis_result,
+        selected_states,
+        baseline="none",
+        competitor="distance",
+    ):
+        paired_differences = cls.calculate_paired_differences(
+            analysis_result,
+            selected_states,
+            baseline=baseline,
+            competitor=competitor,
+        )
+
+        results = {}
+
+        for metric, stats in paired_differences.items():
+            if stats is None:
+                results[metric] = None
+                continue
+
+            deltas = stats["deltas"]
+
+            non_zero_deltas = [
+                delta
+                for delta in deltas
+                if delta != 0
+            ]
+
+            if not non_zero_deltas:
+                results[metric] = {
+                    "statistic": 0.0,
+                    "p_value": 1.0,
+                    "sample_size": 0,
+                    "significant": False,
+                }
+                continue
+
+            test_result = wilcoxon(
+                non_zero_deltas,
+                alternative="two-sided",
+                method="auto",
+            )
+
+            results[metric] = {
+                "statistic": float(test_result.statistic),
+                "p_value": float(test_result.pvalue),
+                "sample_size": len(non_zero_deltas),
+                "significant": bool(test_result.pvalue < 0.05),
             }
 
         return results

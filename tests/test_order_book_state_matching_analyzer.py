@@ -508,3 +508,53 @@ def test_calculate_paired_differences():
     assert avg["mean"] == -1.0
     assert avg["minimum"] == -1.0
     assert avg["maximum"] == -1.0
+
+
+def test_perform_wilcoxon_test():
+    observations = []
+
+    test_data = [
+        ("none", 3.0),
+        ("distance", 2.0),
+        ("random", 2.5),
+    ]
+
+    for policy, cost in test_data:
+        observations.append({
+            "policy": policy,
+            "spread": 0.05,
+            "bid_depth": 250,
+            "ask_depth": 500,
+            "obi": -0.6,
+            "aggressor": "BUY",
+            "execution_cost_bps": cost,
+            "quantity": 100,
+        })
+
+    analysis_result = (
+        OrderBookStateMatchingAnalyzer.analyze(
+            observations
+        )
+    )
+
+    selected_states = (
+        OrderBookStateMatchingAnalyzer.find_common_states(
+            analysis_result
+        )
+    )
+
+    result = (
+        OrderBookStateMatchingAnalyzer.perform_wilcoxon_test(
+            analysis_result,
+            selected_states,
+            baseline="none",
+            competitor="distance",
+        )
+    )
+
+    avg = result["average_cost_bps"]
+
+    assert avg["sample_size"] == 1
+    assert avg["statistic"] == 0.0
+    assert avg["p_value"] == 1.0
+    assert avg["significant"] is False
